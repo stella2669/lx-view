@@ -1,0 +1,83 @@
+# ==============================================================================
+# OS Generated Files
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==============================================================================
+# IDE / Editor Files
+# ==============================================================================
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!/.vscode/settings.json
+!/.vscode/launch.json
+*.swp
+*.swo
+*.sw?
+*~
+*.iml
+*.iws
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ==============================================================================
+# Backend (Spring Boot / Java)
+# ==============================================================================
+backend/build/
+backend/out/
+backend/bin/
+backend/target/
+backend/.gradle/
+backend/logs/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# application.properties (보안상 중요한 설정이 있을 경우 주석 해제하여 무시)
+# backend/src/main/resources/application-secret.properties
+
+# ==============================================================================
+# Frontend (React / Node / Vite)
+# ==============================================================================
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/build/
+frontend/.nx/
+frontend/.npm/
+frontend/.eslintcache
+frontend/coverage/
+
+# Logs
+frontend/logs/
+frontend/*.log
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/lerna-debug.log*
+
+# Next.js / Vite build output
+frontend/.next/
+frontend/out/
+
+# Env files (보안상 중요)
+frontend/.env
+frontend/.env.*
+frontend/*.local
+nginx/.env.nginx
+
+# Vite / React temp
+frontend/*.tsbuildinfo

@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: apm-dashboard-backend
+  datasource:
+    url: jdbc:mariadb://localhost:3306/lxview?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Seoul
+    username: lxview
+    password: lxview
+    driver-class-name: org.mariadb.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update # 애플리케이션 실행 시 Entity 기반으로 스키마 자동 업데이트
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+

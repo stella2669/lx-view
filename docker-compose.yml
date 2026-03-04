@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  # Nginx 웹 서버 (프론트엔드 서빙 & 백엔드 프록시)
+  nginx:
+    image: nginx:alpine
+    container_name: lx-view-nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    env_file:
+      - ./nginx/.env.nginx
+    volumes:
+      # 빌드된 프론트엔드 정적 파일을 Nginx 컨테이너 내부로 마운트
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      # Nginx 공통 설정 및 템플릿 매핑 (Nginx 공식 이미지가 템플릿을 자동으로 conf.d로 파싱)
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/default.conf.template:/etc/nginx/templates/default.conf.template:ro

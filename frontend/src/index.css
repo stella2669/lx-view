@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@theme {
+  /* Tailwind v4 CSS variable mapping */
+  --color-base: var(--bg-base);
+  --color-panel: var(--bg-panel);
+  --color-panel-header: var(--bg-panel-header);
+  --color-hover: var(--bg-hover);
+  --color-border-main: var(--border-color);
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-text-accent: var(--text-accent);
+}
+
+/* 1. Dark (Default) */
+:root,
+:root[data-theme="dark"] {
+  --bg-base: #000000;
+  --bg-panel: #1e2330;
+  --bg-panel-header: #1a1f2b;
+  --bg-hover: #2a3142;
+  --border-color: #374151; /* gray-700 equivalent */
+  --text-main: #ffffff;
+  --text-muted: #9ca3af; /* gray-400 */
+  --text-accent: #22d3ee; /* cyan-400 */
+}
+
+/* 2. Light */
+:root[data-theme="light"] {
+  --bg-base: #f3f4f6; /* gray-100 */
+  --bg-panel: #ffffff;
+  --bg-panel-header: #f9fafb; /* gray-50 */
+  --bg-hover: #f3f4f6;
+  --border-color: #e5e7eb; /* gray-200 */
+  --text-main: #111827; /* gray-900 */
+  --text-muted: #6b7280; /* gray-500 */
+  --text-accent: #2563eb; /* blue-600 */
+}
+
+/* 3. Dracula */
+:root[data-theme="dracula"] {
+  --bg-base: #282a36;
+  --bg-panel: #44475a;
+  --bg-panel-header: #282a36;
+  --bg-hover: #6272a4;
+  --border-color: #6272a4;
+  --text-main: #f8f8f2;
+  --text-muted: #bfbfbf;
+  --text-accent: #ff79c6; /* pink */
+}
+
+/* 4. Ocean */
+:root[data-theme="ocean"] {
+  --bg-base: #0f172a; /* slate-900 */
+  --bg-panel: #1e293b; /* slate-800 */
+  --bg-panel-header: #0f172a;
+  --bg-hover: #334155; /* slate-700 */
+  --border-color: #475569; /* slate-600 */
+  --text-main: #f8fafc; /* slate-50 */
+  --text-muted: #94a3b8; /* slate-400 */
+  --text-accent: #14b8a6; /* teal-500 */
+}
+
+/* 5. Solarized Light */
+:root[data-theme="solarized-light"] {
+  --bg-base: #fdf6e3;
+  --bg-panel: #eee8d5;
+  --bg-panel-header: #e5dec3;
+  --bg-hover: #e5dec3;
+  --border-color: #ccc4a6;
+  --text-main: #657b83;
+  --text-muted: #93a1a1;
+  --text-accent: #cb4b16; /* orange */
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-base);
+  color: var(--color-text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
