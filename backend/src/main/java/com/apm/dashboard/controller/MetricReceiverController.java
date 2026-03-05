@@ -35,9 +35,7 @@ public class MetricReceiverController {
             return ResponseEntity.badRequest().build();
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Received {} metric items from agent.", metrics.size());
-        }
+        log.info("Received {} metric items from agent. Data: {}", metrics.size(), metrics);
 
         // [Scaling & Performance] DB I/O 등 무거운 작업은 백그라운드 Worker 스레드에 위임(Fire and
         // Forget)

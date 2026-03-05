@@ -54,12 +54,16 @@ public class P6spySqlFormatConfiguration implements MessageFormattingStrategy {
             }
         });
 
-        // 콘솔 혹은 기본 애플리케이션 로그에 찍힐 포맷 정의
-        return String.format("[%s] %dms | TraceId: %s | %s",
-                isError ? "ERROR" : (elapsed >= 1000 ? "SLOW" : "OK"),
-                elapsed,
-                finalTraceId,
-                rawSql);
+        // 콘솔 혹은 기본 애플리케이션 로그에 찍힐 포맷 정의 (ERROR이거나 SLOW일 때만 콘솔에 출력)
+        if (isError || elapsed >= 1000) {
+            return String.format("[%s] %dms | TraceId: %s | %s",
+                    isError ? "ERROR" : "SLOW",
+                    elapsed,
+                    finalTraceId,
+                    rawSql);
+        }
+
+        return ""; // 정상 쿼리는 콘솔에 로그를 남기지 않음
     }
 
     private String formatSql(String category, String sql) {

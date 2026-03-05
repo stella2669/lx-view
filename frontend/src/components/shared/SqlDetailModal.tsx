@@ -11,17 +11,35 @@ interface SqlDetailModalProps {
 }
 
 const SqlDetailModal: React.FC<SqlDetailModalProps> = ({ isOpen, onClose, sqlData }) => {
-    // Simple mock formatting for basic readability highlight
-    const formatSql = (sql: string) => {
-        return sql
-            .replace(/\b(SELECT|FROM|WHERE|AND|OR|ORDER BY|GROUP BY|INSERT|UPDATE|DELETE|JOIN|LEFT JOIN|INNER JOIN|VALUES|SET)\b/gi,
-                '<span class="text-pink-400 font-bold">$1</span>')
-            .replace(/\b(AS|IN|LIKE|IS NULL|IS NOT NULL|COUNT|SUM|MAX|MIN|AVG)\b/gi,
-                '<span class="text-cyan-400 font-semibold">$1</span>')
-            .replace(/('([^']|'')*')/g, '<span class="text-green-400">$1</span>')
-            .replace(/(=|>|<|>=|<=|<>|!=)/g, '<span class="text-yellow-400">$1</span>')
-            .replace(/(\n|^)(\s*)/g, '$1$2') // Preserve indents
-            .replace(/\n/g, '<br/>');
+    // SQL 키워드 하이라이팅 (보안 & 이스케이프 파싱 이슈 원천 차단형 토크나이저)
+    const renderSqlNodes = (sql: string) => {
+        // SQL 문법의 주요 구성요소를 기준으로 텍스트를 분할 (캡처 그룹 포함)
+        const parts = sql.split(/(\b(?:SELECT|FROM|WHERE|AND|OR|ORDER BY|GROUP BY|INSERT|UPDATE|DELETE|JOIN|LEFT JOIN|INNER JOIN|VALUES|SET)\b|\b(?:AS|IN|LIKE|IS NULL|IS NOT NULL|COUNT|SUM|MAX|MIN|AVG)\b|'(?:[^']|'')*'|=|>|<|>=|<=|<>|!=)/gi);
+
+        return parts.map((part, index) => {
+            if (!part) return null;
+            const upper = part.toUpperCase();
+
+            // 1. 주요 예약어 (Main Keywords)
+            if (/^(SELECT|FROM|WHERE|AND|OR|ORDER BY|GROUP BY|INSERT|UPDATE|DELETE|JOIN|LEFT JOIN|INNER JOIN|VALUES|SET)$/.test(upper)) {
+                return <span key={index} style={{ color: '#f472b6', fontWeight: 700 }}>{part}</span>;
+            }
+            // 2. 보조 예약어 / 함수 (Sub Keywords / Functions)
+            if (/^(AS|IN|LIKE|IS NULL|IS NOT NULL|COUNT|SUM|MAX|MIN|AVG)$/.test(upper)) {
+                return <span key={index} style={{ color: '#22d3ee', fontWeight: 600 }}>{part}</span>;
+            }
+            // 3. 문자열 리터럴 (String Literals)
+            if (/^'([^']|'')*'$/.test(part)) {
+                return <span key={index} style={{ color: '#4ade80' }}>{part}</span>;
+            }
+            // 4. 연산자 (Operators)
+            if (/^(=|>|<|>=|<=|<>|!=)$/.test(part)) {
+                return <span key={index} style={{ color: '#facc15' }}>{part}</span>;
+            }
+
+            // 기타 일반 텍스트
+            return <React.Fragment key={index}>{part}</React.Fragment>;
+        });
     };
 
     const isSlow = sqlData.executionTimeMs >= 1000;
@@ -104,10 +122,13 @@ const SqlDetailModal: React.FC<SqlDetailModalProps> = ({ isOpen, onClose, sqlDat
                         </button>
                     </div>
                     <div className="p-4 overflow-auto flex-1 custom-scrollbar">
-                        <pre
-                            className="font-mono text-sm leading-relaxed text-main whitespace-pre-wrap break-words"
-                            dangerouslySetInnerHTML={{ __html: formatSql(sqlData.sqlQuery) }}
-                        />
+                        {/* Tokenizer 방식으로 변경: dangerouslySetInnerHTML 제거 및 React Node 직접 렌더링 */}
+                        <div
+                            className="font-mono text-sm leading-relaxed text-main break-words"
+                            style={{ whiteSpace: 'pre-wrap' }}
+                        >
+                            {renderSqlNodes(sqlData.sqlQuery)}
+                        </div>
                     </div>
                 </div>
             </div>

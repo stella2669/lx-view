@@ -143,6 +143,76 @@ Docker를 이용해 자신의 PC에서 실제 배포와 유사하게 Nginx 프�
 4. 브라우저에서 `http://localhost` 에 접속하여 프론트엔드 화면이 잘 뜨고, 백엔드 API/WebSocket 통신이 정상적으로 되는지 확인합니다. 확인이 끝나면 `docker-compose down`으로 종료합니다.
     *(주의: 외부 컨테이너(Nginx)에서 로컬 8080 포트를 호출할 때 OS 파워셀이나 방화벽 설정에 따라 `host.docker.internal:8080`으로 `nginx.conf`의 proxy_pass 주소를 변경해야 할 수 있습니다.)*
 
+## 📡 Agent 데이터 수신 명세 (API Specification)
+
+`lx-view-agent`에서 백엔드(`/api/v1/metrics/collect`)로 전송하는 메트릭 배치 배열 JSON 페이로드 예시입니다. 배치 처리를 위해 항상 배열(`[]`) 형태로 전송되어야 합니다.
+
+### 1. TRANSACTION 타입 데이터
+웹 요청이나 트랜잭션 종료 시 발생하는 메트릭으로, 응답 속도 및 에러 여부를 측정합니다.
+
+```json
+[
+  {
+    "agentName": "lx-agent-prod-01",
+    "type": "TRANSACTION",
+    "txId": "REQ-a1b2c3d4",
+    "timestamp": 1735693200000,
+    "responseTimeMs": 145,
+    "serviceName": "/api/v1/users/login",
+    "isError": false,
+    "httpStatusCode": 200
+  }
+]
+```
+*(참고: `txId` 누락 시 백엔드에서 UUID를 자동 부여하지만, 트랜잭션 추적을 위해 Agent에서 생성하여 전송하는 것을 권장합니다.)*
+
+### 2. JVM 타입 데이터
+일정 주기마다 수집되는 JVM 논리/물리적 상태(CPU, 메모리, 스레드 등) 스냅샷 데이터입니다.
+
+```json
+[
+  {
+    "agentName": "lx-agent-prod-01",
+    "type": "JVM",
+    "timestamp": 1735693200000,
+    "processCpuLoad": 0.15,
+    "systemCpuLoad": 0.45,
+    "heapUsed": 536870912,
+    "heapMax": 2147483648,
+    "heapCommitted": 1073741824,
+    "heapUsagePercent": 25.0,
+    "gcCount": 12,
+    "gcTime": 350,
+    "liveThreads": 45,
+    "deadlockedThreads": 0
+  }
+]
+```
+
+### 3. 배치 전송 예시 (권장)
+네트워크 I/O 최적화를 위해 여러 건, 여러 타입의 메트릭을 하나의 배열에 혼합하여 주기적으로 전송합니다.
+
+```json
+[
+  {
+    "agentName": "lx-agent-prod-01",
+    "type": "JVM",
+    "timestamp": 1735693200000,
+    "processCpuLoad": 0.15
+  },
+  {
+    "agentName": "lx-agent-prod-01",
+    "type": "TRANSACTION",
+    "txId": "REQ-1111",
+    "timestamp": 1735693200500,
+    "responseTimeMs": 420,
+    "serviceName": "/api/v1/orders",
+    "isError": true,
+    "httpStatusCode": 500
+  }
+]
+```
+
 ---
 
 ## 📈 주요 기능
