@@ -83,3 +83,26 @@ body,
   color: var(--color-text-main);
   transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* Dashboard Edit Mode & react-grid-layout overrides */
+.react-resizable-handle {
+  z-index: 50 !important;
+  width: 20px !important;
+  height: 20px !important;
+}
+.react-resizable-handle::after {
+  border-right: 3px solid #22d3ee !important;
+  border-bottom: 3px solid #22d3ee !important;
+  width: 10px !important;
+  height: 10px !important;
+  right: 5px !important;
+  bottom: 5px !important;
+}
+
+/* Edit Mode Background Grid Pattern */
+.edit-grid-bg {
+  background-color: rgba(0, 0, 0, 0.15);
+  background-size: 20px 20px;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-position: top left;
+}

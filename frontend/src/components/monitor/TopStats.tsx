@@ -1,10 +1,11 @@
 import React from 'react';
 import { useStore } from '../../store/useStore';
+import { useDashboardStore } from '../../store/useDashboardStore';
 import { Activity, Globe, AlertTriangle, Zap, Server } from 'lucide-react';
-
 
 const TopStats: React.FC = () => {
     const topStats = useStore((state) => state.topStats);
+    const topStatsVisibility = useDashboardStore((state) => state.topStatsVisibility);
 
     // default zero values before the first websocket message arrives
     const stats = topStats || {
@@ -22,7 +23,8 @@ const TopStats: React.FC = () => {
             icon: <Activity className="w-5 h-5 text-cyan-400" />,
             color: 'from-cyan-500/20 to-cyan-900/20',
             border: 'border-cyan-500/30',
-            text: 'text-cyan-400'
+            text: 'text-cyan-400',
+            visible: topStatsVisibility.activeServices
         },
         {
             label: 'Total Requests',
@@ -30,7 +32,8 @@ const TopStats: React.FC = () => {
             icon: <Globe className="w-5 h-5 text-blue-400" />,
             color: 'from-blue-500/20 to-blue-900/20',
             border: 'border-blue-500/30',
-            text: 'text-blue-400'
+            text: 'text-blue-400',
+            visible: topStatsVisibility.totalRequests
         },
         {
             label: 'Total Errors',
@@ -38,7 +41,8 @@ const TopStats: React.FC = () => {
             icon: <AlertTriangle className="w-5 h-5 text-rose-400" />,
             color: 'from-rose-500/20 to-rose-900/20',
             border: 'border-rose-500/30',
-            text: 'text-rose-400'
+            text: 'text-rose-400',
+            visible: topStatsVisibility.totalErrors
         },
         {
             label: 'TPS (Transactions/s)',
@@ -46,7 +50,8 @@ const TopStats: React.FC = () => {
             icon: <Zap className="w-5 h-5 text-amber-400" />,
             color: 'from-amber-500/20 to-amber-900/20',
             border: 'border-amber-500/30',
-            text: 'text-amber-400'
+            text: 'text-amber-400',
+            visible: topStatsVisibility.tps
         },
         {
             label: 'JVM Threads',
@@ -54,13 +59,18 @@ const TopStats: React.FC = () => {
             icon: <Server className="w-5 h-5 text-emerald-400" />,
             color: 'from-emerald-500/20 to-emerald-900/20',
             border: 'border-emerald-500/30',
-            text: 'text-emerald-400'
+            text: 'text-emerald-400',
+            visible: topStatsVisibility.jvmThreads
         }
     ];
 
+    const visibleStatCards = statCards.filter(stat => stat.visible);
+
+    if (visibleStatCards.length === 0) return null;
+
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            {statCards.map((stat, idx) => (
+        <div className={`grid grid-cols-2 lg:grid-cols-${Math.min(visibleStatCards.length, 5)} gap-4 mb-6`}>
+            {visibleStatCards.map((stat, idx) => (
                 <div key={idx} className={`relative overflow-hidden bg-gradient-to-br ${stat.color} border ${stat.border} rounded-xl p-5 shadow-lg backdrop-blur-sm transition-all duration-300 hover:scale-[1.02]`}>
                     <div className="flex justify-between items-start mb-2 relative z-10">
                         <h3 className="text-muted text-sm font-medium tracking-wide">{stat.label}</h3>

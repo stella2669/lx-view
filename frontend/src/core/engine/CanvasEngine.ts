@@ -11,6 +11,11 @@ export interface EngineOptions<T> {
     onHitTest?: (x: number, y: number, width: number, height: number) => T | null;
     // 클릭 시 발생하는 콜백 함수 (hitTest의 결과를 인자로 받음)
     onClick?: (item: T | null, x: number, y: number, width: number, height: number) => void;
+
+    // 드래그 기능 지원 콜백
+    onDragStart?: (x: number, y: number) => void;
+    onDrag?: (startX: number, startY: number, currentX: number, currentY: number) => void;
+    onDragEnd?: (startX: number, startY: number, endX: number, endY: number) => void;
 }
 
 export class CanvasEngine<T> {
@@ -26,6 +31,11 @@ export class CanvasEngine<T> {
     public height: number = 0;
     public mouseX: number = -1;
     public mouseY: number = -1;
+
+    // 드래그 상태 관리
+    private isDragging: boolean = false;
+    private dragStartX: number = -1;
+    private dragStartY: number = -1;
 
     constructor(options: EngineOptions<T>) {
         this.options = options;
@@ -55,9 +65,18 @@ export class CanvasEngine<T> {
         const bounds = this.canvas.getBoundingClientRect();
         this.mouseX = e.clientX - bounds.left;
         this.mouseY = e.clientY - bounds.top;
+
+        if (this.isDragging && this.options.onDrag) {
+            this.options.onDrag(this.dragStartX, this.dragStartY, this.mouseX, this.mouseY);
+        }
     };
 
     private handleClick = (e: MouseEvent) => {
+        // 드래그 중이었다면 클릭 이벤트를 무시 (드래그 종료로 처리)
+        if (this.isDragging) {
+            return;
+        }
+
         const bounds = this.canvas.getBoundingClientRect();
         const x = e.clientX - bounds.left;
         const y = e.clientY - bounds.top;
@@ -70,14 +89,61 @@ export class CanvasEngine<T> {
         }
     };
 
+    private handleMouseDown = (e: MouseEvent) => {
+        const bounds = this.canvas.getBoundingClientRect();
+        this.dragStartX = e.clientX - bounds.left;
+        this.dragStartY = e.clientY - bounds.top;
+        this.isDragging = true;
+
+        if (this.options.onDragStart) {
+            this.options.onDragStart(this.dragStartX, this.dragStartY);
+        }
+    };
+
+    private handleMouseUp = (e: MouseEvent) => {
+        if (!this.isDragging) return;
+
+        const bounds = this.canvas.getBoundingClientRect();
+        const endX = e.clientX - bounds.left;
+        const endY = e.clientY - bounds.top;
+
+        // 마우스가 살짝만 움직여도 드래그로 인식되는 것을 방지하기 위한 임계값 (예: 5px)
+        const dx = Math.abs(endX - this.dragStartX);
+        const dy = Math.abs(endY - this.dragStartY);
+
+        if (dx > 5 || dy > 5) {
+            if (this.options.onDragEnd) {
+                this.options.onDragEnd(this.dragStartX, this.dragStartY, endX, endY);
+            }
+        }
+        
+        // requestAnimationFrame이 클릭보다 늦게 처리될 수 있으므로 약간의 지연 후 isDragging 해제
+        setTimeout(() => {
+             this.isDragging = false;
+        }, 0);
+    };
+
+    // 캔버스 밖으로 마우스가 나갔을 때 드래그 종료 처리
+    private handleMouseLeave = (e: MouseEvent) => {
+        if (this.isDragging) {
+            this.handleMouseUp(e);
+        }
+    };
+
     private attachEvents = () => {
         this.canvas.addEventListener('mousemove', this.handleMouseMove);
+        this.canvas.addEventListener('mousedown', this.handleMouseDown);
+        this.canvas.addEventListener('mouseup', this.handleMouseUp);
+        this.canvas.addEventListener('mouseleave', this.handleMouseLeave);
         this.canvas.addEventListener('click', this.handleClick);
         this.canvas.style.cursor = 'default';
     };
 
     private detachEvents = () => {
         this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+        this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+        this.canvas.removeEventListener('mouseup', this.handleMouseUp);
+        this.canvas.removeEventListener('mouseleave', this.handleMouseLeave);
         this.canvas.removeEventListener('click', this.handleClick);
         this.resizeObserver.disconnect();
     };

@@ -25,7 +25,7 @@ import com.apm.dashboard.model.JvmMetricsData;
 import com.apm.dashboard.service.TransactionService;
 
 @Slf4j
-// @Component // 에이전트 다이렉트 연동으로 인해 가짜(Mock) 데이터 생성 스케줄러 비활성화
+@Component // 에이전트 다이렉트 연동으로 인해 가짜(Mock) 데이터 생성 스케줄러 비활성화
 public class DataMockScheduler {
 
     // 웹소켓 메시지 전송을 위한 템플릿 (클라이언트로 실시간 데이터를 푸시할 때 사용)

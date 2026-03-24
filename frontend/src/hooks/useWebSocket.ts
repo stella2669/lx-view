@@ -4,12 +4,18 @@ import { useStore } from '../store/useStore';
 import type { TransactionData, ActiveServiceData, TopStatsData, JvmMetricsData } from '../store/useStore';
 
 export const useWebSocket = () => {
-    const { addTransactions, updateActiveServices, setTopStats, setJvmMetrics } = useStore();
+    // [성능 픽스] useStore()를 액션 단위로 분리 구독하여 상태 변경 시 App.tsx 전체가 리렌더되던 심각한 버그 수정
+    const addTransactions = useStore((state) => state.addTransactions);
+    const updateActiveServices = useStore((state) => state.updateActiveServices);
+    const setTopStats = useStore((state) => state.setTopStats);
+    const setJvmMetrics = useStore((state) => state.setJvmMetrics);
+    
     const clientRef = useRef<Client | null>(null);
 
     useEffect(() => {
         // Recover 5-minute history from backend on initial mount/refresh
-        fetch('http://localhost:8080/api/transactions/history')
+        const httpBaseUrl = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8080`;
+        fetch(`${httpBaseUrl}/api/transactions/history`)
             .then(res => res.json())
             .then((data: TransactionData[]) => {
                 if (data && data.length > 0) {
@@ -18,8 +24,13 @@ export const useWebSocket = () => {
             })
             .catch(err => console.error('Failed to load transaction history:', err));
 
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = import.meta.env.VITE_API_BASE_URL 
+            ? import.meta.env.VITE_API_BASE_URL.replace(/^https?:\/\//, '')
+            : `${window.location.hostname}:8080`;
+            
         const client = new Client({
-            brokerURL: 'ws://localhost:8080/ws-apm',
+            brokerURL: `${wsProtocol}//${wsHost}/ws-apm`,
             reconnectDelay: 5000,
             onConnect: () => {
                 console.log('Connected to WebSocket!');

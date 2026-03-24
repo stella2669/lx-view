@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import type { StatAppSql, LogAppSlowQuery } from '../types/sql';
 
-const API_BASE = 'http://localhost:8080/api/v1/monitor/sql';
+const API_BASE = import.meta.env.VITE_API_BASE_URL 
+    ? `${import.meta.env.VITE_API_BASE_URL}/api/v1/monitor/sql`
+    : `http://${window.location.hostname}:8080/api/v1/monitor/sql`;
 
 export const useSqlMonitor = (appId: number = 1, minutes: number = 30) => {
     const [stats, setStats] = useState<StatAppSql[]>([]);

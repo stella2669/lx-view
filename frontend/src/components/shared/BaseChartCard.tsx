@@ -5,7 +5,7 @@ interface BaseChartCardProps {
     title: string;
     icon?: LucideIcon;
     iconColor?: string;
-    rightLabel?: string;
+    rightLabel?: React.ReactNode;
     children: React.ReactNode;
     isEmpty?: boolean;
     emptyMessage?: string;
@@ -25,19 +25,19 @@ const BaseChartCard: React.FC<BaseChartCardProps> = ({
     emptyMessage = 'Awaiting data...'
 }) => {
     return (
-        <div className="h-full w-full bg-panel rounded-lg shadow-lg border border-border-main p-4 flex flex-col transition-colors">
-            <div className="flex justify-between items-center mb-2">
+        <div className="h-full w-full bg-panel rounded-lg shadow-lg border border-border-main p-4 flex flex-col transition-colors min-w-0 min-h-0">
+            <div className="flex justify-between items-center mb-2 shrink-0">
                 <h2 className="text-sm font-semibold text-main flex items-center gap-2">
                     {Icon && <Icon size={16} className={iconColor} />}
                     {title}
                 </h2>
                 {rightLabel && (
-                    <div className="text-[10px] text-muted font-medium tracking-wide">
+                    <div className="text-[10px] text-muted font-medium tracking-wide flex items-center gap-2">
                         {rightLabel}
                     </div>
                 )}
             </div>
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 relative overflow-hidden min-w-0 min-h-0">
                 {isEmpty ? (
                     <div className="flex items-center justify-center h-full w-full text-xs text-muted animate-pulse">
                         {emptyMessage}

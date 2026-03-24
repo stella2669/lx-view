@@ -13,12 +13,20 @@ export function useCanvasEngine<T>(options: UseCanvasEngineProps<T>) {
     const onHitTestRef = useRef(options.onHitTest);
     const onClickRef = useRef(options.onClick);
     const getBgColorRef = useRef(options.getBgColor);
+    
+    const onDragStartRef = useRef(options.onDragStart);
+    const onDragRef = useRef(options.onDrag);
+    const onDragEndRef = useRef(options.onDragEnd);
 
     useEffect(() => {
         onDrawRef.current = options.onDraw;
         onHitTestRef.current = options.onHitTest;
         onClickRef.current = options.onClick;
         getBgColorRef.current = options.getBgColor;
+
+        onDragStartRef.current = options.onDragStart;
+        onDragRef.current = options.onDrag;
+        onDragEndRef.current = options.onDragEnd;
     }, [options]);
 
     // 컴포넌트가 처음 화면에 나타날 때(Mount) 단 한 번 실행
@@ -34,7 +42,10 @@ export function useCanvasEngine<T>(options: UseCanvasEngineProps<T>) {
             // 훅 내부 Ref에 저장해둔 '최신 버전의' 함수를 호출하도록 엔진에게 알려줌
             onDraw: (ctx, width, height, time) => onDrawRef.current(ctx, width, height, time),
             onHitTest: (x, y, w, h) => onHitTestRef.current ? onHitTestRef.current(x, y, w, h) : null,
-            onClick: (item, x, y, w, h) => onClickRef.current && onClickRef.current(item, x, y, w, h)
+            onClick: (item, x, y, w, h) => onClickRef.current && onClickRef.current(item, x, y, w, h),
+            onDragStart: (x, y) => onDragStartRef.current && onDragStartRef.current(x, y),
+            onDrag: (startX, startY, currentX, currentY) => onDragRef.current && onDragRef.current(startX, startY, currentX, currentY),
+            onDragEnd: (startX, startY, endX, endY) => onDragEndRef.current && onDragEndRef.current(startX, startY, endX, endY)
         });
 
         // 엔진 루프 시작 (requestAnimationFrame 가동)

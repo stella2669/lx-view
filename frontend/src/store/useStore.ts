@@ -73,11 +73,28 @@ export const useStore = create<DashboardState>((set) => ({
         const now = Date.now();
         const fiveMinsAgo = now - 5 * 60 * 1000;
 
-        // Append new data, filter out data older than 5 minutes
-        const updated = [...state.transactions, ...newData]
-            .filter(tx => tx.timestamp >= fiveMinsAgo);
+        // O(1) GC Limit: 배열 전체 복사([...state]) 및 filter() 대신, 시간 범위 밖의 요소를 찾아 slice
+        let cutoff = 0;
+        for (let i = 0; i < state.transactions.length; i++) {
+            if (state.transactions[i].timestamp >= fiveMinsAgo) {
+                cutoff = i;
+                break;
+            }
+        }
+        if (state.transactions.length > 0 && cutoff === 0 && state.transactions[state.transactions.length - 1].timestamp < fiveMinsAgo) {
+            cutoff = state.transactions.length; // 모두 5분 이전 데이터인 경우
+        }
 
-        // Pre-calculate response stats ONCE per store update instead of repeatedly in React components
+        const baseTxs = cutoff > 0 ? state.transactions.slice(cutoff) : state.transactions;
+        let updated = baseTxs.concat(newData);
+
+        // 하드 캡(Hard Cap): 메모리 방어 및 캔버스 렌더링 한계 보장 (최대 20,000개)
+        const MAX_ITEMS = 20000;
+        if (updated.length > MAX_ITEMS) {
+            updated = updated.slice(updated.length - MAX_ITEMS);
+        }
+
+        // 응답 상태 통계 사전 계산
         const newStats = { under1: 0, under3: 0, under5: 0, over5: 0, normal: 0, error: 0 };
         for (let i = 0; i < updated.length; i++) {
             const tx = updated[i];

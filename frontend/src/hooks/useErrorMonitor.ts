@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UnifiedError } from '../types/error';
 
-const API_BASE_URL = 'http://localhost:8080';
+// .env 파일 혹은 Vite 기본 설정으로 주입된 백엔드 API 주소 사용
+// 외부에서 접속할 때는 브라우저의 현재 호스트를 기반으로 접속되도록 상대 경로 처리
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8080`;
 export const useErrorMonitor = (appId: number = 1, minutes: number = 60, refreshIntervalMs: number = 5000) => {
     const [errors, setErrors] = useState<UnifiedError[]>([]);
     const [loading, setLoading] = useState(true);

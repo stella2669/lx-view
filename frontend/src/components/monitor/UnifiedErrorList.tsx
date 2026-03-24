@@ -5,6 +5,7 @@ import { ServerCrash, Database, AlertCircle, Clock, ChevronRight } from 'lucide-
 import { DateTime } from 'luxon';
 import { AppErrorDetailModal } from '../shared/AppErrorDetailModal';
 import SqlDetailModal from '../shared/SqlDetailModal';
+import BaseChartCard from '../shared/BaseChartCard';
 
 export const UnifiedErrorList: React.FC = () => {
     const { errors, loading } = useErrorMonitor();
@@ -32,27 +33,19 @@ export const UnifiedErrorList: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-panel rounded-lg border border-border-main shadow-xl overflow-hidden transition-colors">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border-main/50 bg-panel-header/50">
-                <div className="flex items-center space-x-2">
-                    <AlertCircle className="w-5 h-5 text-rose-500" />
-                    <h3 className="text-sm font-semibold text-main">Recent Errors</h3>
-                    <span className="text-xs text-muted font-mono ml-2">Total: {errors.length}</span>
-                </div>
-            </div>
-
-            {/* List Content */}
-            <div className="flex-1 overflow-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+        <BaseChartCard
+            title="Recent Errors"
+            icon={AlertCircle}
+            iconColor="text-rose-500"
+            rightLabel={<span className="font-mono">Total: {errors.length}</span>}
+            isEmpty={errors.length === 0 && !loading}
+            emptyMessage="No recent errors detected"
+        >
+            <div className="w-full h-full overflow-auto pr-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 {loading && errors.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-muted text-sm">
                         <div className="animate-spin w-4 h-4 border-2 border-text-accent border-t-transparent rounded-full mr-2" />
                         Loading errors...
-                    </div>
-                ) : errors.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted space-y-2">
-                        <AlertCircle className="w-8 h-8 opacity-20" />
-                        <span className="text-sm">No recent errors detected</span>
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -111,6 +104,6 @@ export const UnifiedErrorList: React.FC = () => {
                     error={selectedError.originalPayload as any}
                 />
             )}
-        </div>
+        </BaseChartCard>
     );
 };

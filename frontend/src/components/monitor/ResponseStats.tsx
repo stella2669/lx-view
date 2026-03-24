@@ -9,16 +9,11 @@ import { useChartTheme } from '../../hooks/useChartTheme';
 
 const ResponseStats: React.FC = () => {
     const responseStats = useStore(state => state.responseStats);
-    const transactions = useStore(state => state.transactions);
     const { colors, defaultTooltip, defaultGrid, defaultXAxis, defaultYAxis } = useChartTheme();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
     const [filteredTxs, setFilteredTxs] = useState<TransactionData[]>([]);
-
-    // 실시간 리렌더링에 따른 Event 해제/등록 반복(Thrashing) 방지를 위한 래퍼
-    const transactionsRef = React.useRef(transactions);
-    transactionsRef.current = transactions;
 
     const timeData = [
         { value: responseStats.under1, name: '< 1s', itemStyle: { color: colors.success } },
@@ -90,8 +85,8 @@ const ResponseStats: React.FC = () => {
 
         let filtered: TransactionData[] = [];
         const category = params.name;
-        // Ref에서 가장 최신의 트랜잭션 데이터를 꺼내 옴
-        const currentTxs = transactionsRef.current;
+        // 클릭 순간 전역 스토어에서 가장 최신의 트랜잭션 데이터를 바로 꺼내 옴 (리렌더링 방지)
+        const currentTxs = useStore.getState().transactions;
 
         if (category === '< 1s') {
             filtered = currentTxs.filter(tx => tx.responseTimeMs < 1000);

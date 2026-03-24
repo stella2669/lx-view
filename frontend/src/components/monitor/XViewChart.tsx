@@ -4,6 +4,8 @@ import { useCanvasEngine } from '../../hooks/useCanvasEngine';
 import { CoordinateMath } from '../../core/math/CoordinateMath';
 import { ParticleRenderer } from '../../core/renderer/ParticleRenderer';
 import { useTransactionDetail } from '../../hooks/useTransactionDetail';
+import { ScatterChart } from 'lucide-react';
+import BaseChartCard from '../shared/BaseChartCard';
 
 // X-View 스캐터 차트 설정 상수
 const TIME_WINDOW_MS = 5 * 60 * 1000; // 차트에 표시할 과거 시간 범위 (5분)
@@ -13,14 +15,34 @@ const XViewChart: React.FC = () => {
     // 트랜잭션을 마우스로 클릭했을 때 상세 팝업을 띄우기 위한 커스텀 훅 (비동기 Lazy Load)
     const { selectedTxId, loadDetail, closeDetail, detailData, loading } = useTransactionDetail();
 
+    // 드래그 선택 상태 관리
+    const [dragBox, setDragBox] = React.useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+    const [selectedTransactions, setSelectedTransactions] = React.useState<any[]>([]);
+
+    const stylesCacheRef = React.useRef<any>(null);
+    const lastThemeRef = React.useRef<string | null>(null);
+
+    const getCachedStyles = useCallback(() => {
+        const currentTheme = useStore.getState().theme;
+        if (!stylesCacheRef.current || lastThemeRef.current !== currentTheme) {
+            const rootStyle = getComputedStyle(document.documentElement);
+            stylesCacheRef.current = {
+                gridColor: rootStyle.getPropertyValue('--border-color').trim() || 'rgba(255, 255, 255, 0.1)',
+                textColor: rootStyle.getPropertyValue('--text-muted').trim() || 'rgba(255, 255, 255, 0.5)',
+                axisTitleColor: rootStyle.getPropertyValue('--text-main').trim() || 'rgba(255, 255, 255, 0.7)',
+            };
+            lastThemeRef.current = currentTheme;
+        }
+        return stylesCacheRef.current;
+    }, []);
+
     // [중요 로직] 매 프레임(초당 60회) 캔버스에 실제로 점을 찍는 렌더링 콜백 함수
     // useCallback을 통해 함수 참조를 고정, CanvasEngine이 불필요하게 파기/재생성되는 것을 방지함
     const onDraw = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number, time: number) => {
-        // Get CSS Variables for Theming
-        const rootStyle = getComputedStyle(document.documentElement);
-        const gridColor = rootStyle.getPropertyValue('--border-color').trim() || 'rgba(255, 255, 255, 0.1)';
-        const textColor = rootStyle.getPropertyValue('--text-muted').trim() || 'rgba(255, 255, 255, 0.5)';
-        const axisTitleColor = rootStyle.getPropertyValue('--text-main').trim() || 'rgba(255, 255, 255, 0.7)';
+        const styles = getCachedStyles();
+        const gridColor = styles.gridColor;
+        const textColor = styles.textColor;
+        const axisTitleColor = styles.axisTitleColor;
 
         const transactions = useStore.getState().transactions;
         const now = Date.now();
@@ -136,7 +158,36 @@ const XViewChart: React.FC = () => {
             ParticleRenderer.drawPulseRing(ctx, sx, sy, time, color);
         }
 
-    }, [selectedTxId]);
+        // 4. 다중 선택된 펄스 효과 그리기
+        selectedTransactions.forEach(tx => {
+            if (tx.timestamp < startTime) return;
+            const chartWidth = width - 35;
+            const x = 35 + CoordinateMath.calculateX(tx.timestamp - startTime, TIME_WINDOW_MS, chartWidth);
+            const chartHeight = height - 20;
+            const y = chartHeight - (chartHeight * Math.min(tx.responseTimeMs, Y_MAX_MS) / Y_MAX_MS);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        });
+
+        // 5. 드래그 중인 영역(Brush) 박스 그리기
+        if (dragBox) {
+            const bx = Math.min(dragBox.startX, dragBox.endX);
+            const by = Math.min(dragBox.startY, dragBox.endY);
+            const bw = Math.abs(dragBox.endX - dragBox.startX);
+            const bh = Math.abs(dragBox.endY - dragBox.startY);
+
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.15)'; // 좀 더 연한 반투명 스카이블루
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, bw, bh);
+        }
+
+    }, [selectedTxId, dragBox, selectedTransactions, getCachedStyles]);
 
     const onHitTest = useCallback((x: number, y: number, width: number, height: number) => {
         const transactions = useStore.getState().transactions;
@@ -163,27 +214,86 @@ const XViewChart: React.FC = () => {
     const onClick = useCallback((hitTx: any | null) => {
         if (hitTx && hitTx.id) {
             loadDetail(hitTx.id);
+            setSelectedTransactions([]); // 단일 클릭 시 다중 선택 초기화
         } else {
             closeDetail();
+            setSelectedTransactions([]); // 빈 곳 클릭 시 초기화
         }
     }, [loadDetail, closeDetail]);
+
+    // 드래그 이벤트 핸들러
+    const onDragStart = useCallback((x: number, y: number) => {
+        closeDetail(); // 드래그 시작 시 기존 단일 팝업 닫기
+        // 처음엔 시작점과 끝점이 같음
+        setDragBox({ startX: x, startY: y, endX: x, endY: y });
+    }, [closeDetail]);
+
+    const onDrag = useCallback((startX: number, startY: number, currentX: number, currentY: number) => {
+        setDragBox({ startX, startY, endX: currentX, endY: currentY });
+    }, []);
+
+    const onDragEnd = useCallback((startX: number, startY: number, endX: number, endY: number) => {
+        setDragBox(null); // 드래그 시각 효과 제거
+
+        const bx = Math.min(startX, endX);
+        const by = Math.min(startY, endY);
+        const bw = Math.abs(endX - startX);
+        const bh = Math.abs(endY - startY);
+
+        if (canvasRef.current && (bw > 5 || bh > 5)) {
+             const width = canvasRef.current.width / (window.devicePixelRatio || 1);
+             const height = canvasRef.current.height / (window.devicePixelRatio || 1);
+
+             const transactions = useStore.getState().transactions;
+             const now = Date.now();
+             const startTime = now - TIME_WINDOW_MS;
+
+             // 박스 영역 안의 트랜잭션들 필터링
+             const selected: any[] = [];
+             
+             // 최근 것부터 탐색하되 최대 표시 개수 제한 (성능/UI 고려)
+             const MAX_SELECT = 50; 
+
+             for (let i = transactions.length - 1; i >= 0; i--) {
+                 const tx = transactions[i];
+                 if (tx.timestamp < startTime) continue;
+
+                 const chartWidth = width - 35;
+                 const chartHeight = height - 20;
+                 const px = 35 + CoordinateMath.calculateX(tx.timestamp - startTime, TIME_WINDOW_MS, chartWidth);
+                 const py = chartHeight - (chartHeight * Math.min(tx.responseTimeMs, Y_MAX_MS) / Y_MAX_MS);
+
+                 // 점의 중심좌표 px, py가 박스(bx, by, bw, bh) 안에 포함되는지 확인
+                 if (px >= bx && px <= bx + bw && py >= by && py <= by + bh) {
+                     selected.push(tx);
+                     if (selected.length >= MAX_SELECT) break;
+                 }
+             }
+
+             setSelectedTransactions(selected);
+        }
+    }, []);
 
     const { canvasRef } = useCanvasEngine({
         motionBlur: false, // Scatter chart doesn't need blur
         onDraw,
         onHitTest,
-        onClick
+        onClick,
+        onDragStart,
+        onDrag,
+        onDragEnd
     });
 
     return (
-        <div className="w-full h-full bg-panel rounded-lg shadow-lg shadow-cyan-500/10 p-4 border border-border-main relative overflow-hidden flex flex-col transition-colors">
-            <h3 className="text-main text-md font-semibold text-center z-10 pointers-events-none mb-2 select-none">X-View (Live Scatter)</h3>
-            <div className="flex-1 relative w-full h-full">
-                <canvas ref={canvasRef} className="w-full h-full block absolute top-0 left-0" />
-            </div>
+        <BaseChartCard
+            title="X-View (Live Scatter)"
+            icon={ScatterChart}
+            iconColor="text-indigo-400"
+        >
+            <canvas ref={canvasRef} className="w-full h-full block absolute top-0 left-0" />
 
             {/* REST API Mock Overlay Layer */}
-            {selectedTxId && (
+            {selectedTxId && !selectedTransactions.length && (
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800/95 border border-indigo-500 p-5 rounded-lg shadow-2xl z-50 text-white min-w-[350px]">
                     <div className="flex justify-between items-center border-b border-gray-700 pb-3 mb-3">
                         <h4 className="font-bold text-indigo-400">Transaction Detail</h4>
@@ -208,7 +318,36 @@ const XViewChart: React.FC = () => {
                     ) : null}
                 </div>
             )}
-        </div>
+
+            {/* Drag Selection Overlay */}
+            {selectedTransactions.length > 0 && (
+                <div className="absolute right-4 top-12 bg-gray-800/95 border border-sky-500 p-4 rounded-lg shadow-2xl z-50 text-white w-80 max-h-[80%] flex flex-col">
+                    <div className="flex justify-between items-center border-b border-gray-700 pb-2 mb-2 shrink-0">
+                        <h4 className="font-bold text-sky-400">Selected Transactions ({selectedTransactions.length})</h4>
+                        <button onClick={() => setSelectedTransactions([])} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+                    </div>
+                    <div className="overflow-y-auto pr-2 space-y-2 flex-1 min-h-0 custom-scrollbar">
+                        {selectedTransactions.map(tx => (
+                            <div key={tx.id} 
+                                 className="text-xs bg-gray-900 border border-gray-700 p-2 rounded cursor-pointer hover:border-indigo-500 transition-colors"
+                                 onClick={() => loadDetail(tx.id)}
+                            >
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="font-mono text-gray-400">{tx.id.substring(0, 8)}...</span>
+                                    <span className={tx.isError ? "text-red-400" : "text-sky-400"}>
+                                        {tx.responseTimeMs}ms
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-gray-500">
+                                    <span>{new Date(tx.timestamp).toLocaleTimeString()}</span>
+                                    {tx.isError && <span className="bg-red-900/50 text-red-200 px-1 rounded">Error</span>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </BaseChartCard>
     );
 };
 

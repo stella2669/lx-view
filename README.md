@@ -82,12 +82,12 @@ npm run build
 * 빌드가 완료되면 `frontend/dist` 폴더에 생성되는 파일들을 Nginx의 문서 디렉토리(ex: `/usr/share/nginx/html`)로 배포합니다.
 
 #### 💡 Nginx 설정 예시 (Frontend + Backend Proxy)
-프론트엔드 정적 파일 서빙과 백엔드 API/WebSocket(`ws://`) 요청을 한 곳에서 처리하기 위한 Nginx `server` 블록 설정 예시입니다.
+프론트엔드 정적 파일 서빙과 백엔드 API/WebSocket(`ws://`) 요청을 한 곳에서 처리하기 위한 Nginx `server` 블록 설정 예시입니다. 로컬 PC에서 5173 등의 포트를 통해 외부 기기(동일망 내 다른 PC) 접근을 허용하려면 `listen` 포트를 변경하세요.
 
 ```nginx
 server {
-    listen 80;
-    server_name your-domain.com; # 배포할 도메인 또는 IP
+    listen 80; # 또는 외부 접속 개방용 포트(ex: 5173) 사용
+    server_name 0.0.0.0; # 모든 IP에서의 접근 허용 (보안 설정 유의)
 
     # 1. Frontend 정적 파일 제공
     location / {
@@ -143,9 +143,23 @@ Docker를 이용해 자신의 PC에서 실제 배포와 유사하게 Nginx 프�
 4. 브라우저에서 `http://localhost` 에 접속하여 프론트엔드 화면이 잘 뜨고, 백엔드 API/WebSocket 통신이 정상적으로 되는지 확인합니다. 확인이 끝나면 `docker-compose down`으로 종료합니다.
     *(주의: 외부 컨테이너(Nginx)에서 로컬 8080 포트를 호출할 때 OS 파워셀이나 방화벽 설정에 따라 `host.docker.internal:8080`으로 `nginx.conf`의 proxy_pass 주소를 변경해야 할 수 있습니다.)*
 
-## 📡 Agent 데이터 수신 명세 (API Specification)
+## 📡 API 명세 (API Specification)
 
-`lx-view-agent`에서 백엔드(`/api/v1/metrics/collect`)로 전송하는 메트릭 배치 배열 JSON 페이로드 예시입니다. 배치 처리를 위해 항상 배열(`[]`) 형태로 전송되어야 합니다.
+### 1️⃣ 대시보드 프론트엔드 조회 API
+프론트엔드 화면 구성을 위해 백엔드에서 데이터를 응답하는 주요 REST API 목록입니다.
+- **SQL 모니터링 (`/api/v1/monitor/sql`)**
+  - `GET /stats`: 지정된 시간(minutes) 단위의 누적/평균 SQL 통계(실행 횟수, 지연 쿼리 수 등)
+  - `GET /slow/top`: 수행 시간이 가장 오래 걸린 Top 50 쿼리 목록
+  - `GET /slow/recent`: 가장 최근 발생한 슬로우/에러 쿼리 목록
+- **에러/예외 모니터링 (`/api/v1/monitor/errors`)**
+  - `GET /recent`: 최근 지정된 분(minutes) 동안 발생한 애플리케이션 및 SQL Unified 에러 목록
+- **트랜잭션 히스토리 (`/api/transactions`)**
+  - `GET /history`: 인메모리에 보관 중인 최근 트랜잭션 목록 반환 (차트 드래그 및 초기 데이터용)
+
+---
+
+### 2️⃣ Agent 데이터 수신 API `/api/v1/metrics/collect`
+`lx-view-agent`에서 백엔드로 전송하는 메트릭 배치 배열 JSON 페이로드 예시입니다. 배치 처리를 위해 항상 배열(`[]`) 형태로 전송되어야 합니다.
 
 ### 1. TRANSACTION 타입 데이터
 웹 요청이나 트랜잭션 종료 시 발생하는 메트릭으로, 응답 속도 및 에러 여부를 측정합니다.
@@ -218,6 +232,7 @@ Docker를 이용해 자신의 PC에서 실제 배포와 유사하게 Nginx 프�
 ## 📈 주요 기능
 
 - **실시간 메트릭 모니터링**: 에이전트에서 전송하는 배치 배열 데이터를 실시간으로 수신받아 ECharts를 활용해 시각화
+- **트랜잭션 드래그 앤 셀렉트 팝업**: 차트의 특정 영역을 마우스로 드래그하여 해당 구간 내 발생한 트랜잭션 상세 목록을 팝업으로 즉시 조회하는 기능 제공
 - **Transaction Flow Theming**: 라이트/다크 모드 등 테마 설정 지원
 - **동적 파티클 및 애니메이션 UI**: 직관적이고 상태를 쉽게 파악할 수 있는 다이나믹 모니터링 UI
 

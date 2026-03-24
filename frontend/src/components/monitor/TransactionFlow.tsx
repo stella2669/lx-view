@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { useCanvasEngine } from '../../hooks/useCanvasEngine';
+import { Activity } from 'lucide-react';
+import BaseChartCard from '../shared/BaseChartCard';
 
 interface Particle {
     x: number;
@@ -20,16 +22,34 @@ const TransactionFlow: React.FC = () => {
     const lastTxTimeRef = useRef<number>(0);
     const spawnQueueRef = useRef<any[]>([]); // Queue to smooth out bursts
 
+    const stylesCacheRef = useRef<any>(null);
+    const lastThemeRef = useRef<string | null>(null);
+
+    const getCachedStyles = () => {
+        const currentTheme = useStore.getState().theme;
+        if (!stylesCacheRef.current || lastThemeRef.current !== currentTheme) {
+            const rootStyle = getComputedStyle(document.documentElement);
+            stylesCacheRef.current = {
+                borderColor: rootStyle.getPropertyValue('--border-color').trim() || '#374151',
+                panelColor: rootStyle.getPropertyValue('--bg-panel').trim() || '#1e2330',
+                accentColor: rootStyle.getPropertyValue('--text-accent').trim() || '#22d3ee',
+                textColor: rootStyle.getPropertyValue('--text-main').trim() || '#ffffff',
+                textMuted: rootStyle.getPropertyValue('--text-muted').trim() || '#9ca3af',
+                bgBase: rootStyle.getPropertyValue('--bg-base').trim() || '#1e2330',
+            };
+            lastThemeRef.current = currentTheme;
+        }
+        return stylesCacheRef.current;
+    };
+
     const onDraw = (ctx: CanvasRenderingContext2D, width: number, height: number, time: number) => {
         // [수정됨] ctx.clearRect(...)는 CanvasEngine이 내부적으로 motionBlur와 함께 처리하므로 제거해야 합니다.
         // 엔진이 그려둔 배경(모션 블러 혹은 기본 클리어)을 덮어쓰지 않고 바로 그 위에 컴포넌트들을 그려나갑니다.
 
-        // Get CSS Variables from Root to sync Canvas with Tailwind themes
-        const rootStyle = getComputedStyle(document.documentElement);
-        // Fallback colors if variables are somehow not readable yet
-        const borderColor = rootStyle.getPropertyValue('--border-color').trim() || '#374151';
-        const panelColor = rootStyle.getPropertyValue('--bg-panel').trim() || '#1e2330';
-        const accentColor = rootStyle.getPropertyValue('--text-accent').trim() || '#22d3ee';
+        const styles = getCachedStyles();
+        const borderColor = styles.borderColor;
+        const panelColor = styles.panelColor;
+        const accentColor = styles.accentColor;
 
         // Draw Background Tube
         ctx.fillStyle = panelColor;
@@ -80,6 +100,11 @@ const TransactionFlow: React.FC = () => {
 
         // 2. Smoothly spawn particles from the queue (bursts come every 5s)
         if (spawnQueueRef.current.length > 0) {
+            // [메모리 팽창 방지] 대기열 무한 증식(Leak) 강제 억제 캡(Hard Cap)
+            if (spawnQueueRef.current.length > 1000) {
+                spawnQueueRef.current = spawnQueueRef.current.slice(-1000);
+            }
+
             const spawnRate = Math.max(0.5, spawnQueueRef.current.length / 60);
             let spawnCount = Math.floor(spawnRate);
             if (Math.random() < (spawnRate - spawnCount)) spawnCount += 1;
@@ -213,8 +238,8 @@ const TransactionFlow: React.FC = () => {
         const pulse = (Math.sin(time / 300) + 1) / 2;
         const dynamicOpacity = 0.1 + (glowIntensity * 0.4 * pulse);
 
-        const textColor = rootStyle.getPropertyValue('--text-main').trim() || '#ffffff';
-        const textMuted = rootStyle.getPropertyValue('--text-muted').trim() || '#9ca3af';
+        const textColor = styles.textColor;
+        const textMuted = styles.textMuted;
 
         const glowRgb = isLight ? '14, 165, 233' : '1, 255, 229'; // sky-500 vs neon cyan
         ctx.fillStyle = `rgba(${glowRgb}, ${dynamicOpacity})`;
@@ -271,16 +296,17 @@ const TransactionFlow: React.FC = () => {
         onDraw,
         motionBlur: true,
         motionBlurAlpha: 0.95,
-        getBgColor: () => {
-            const rootStyle = getComputedStyle(document.documentElement);
-            return rootStyle.getPropertyValue('--bg-base').trim() || '#1e2330';
-        }
+        getBgColor: () => getCachedStyles().bgBase
     });
 
     return (
-        <div className="flex-1 w-full relative min-h-[150px]">
+        <BaseChartCard
+            title="Transaction Flow"
+            icon={Activity}
+            iconColor="text-sky-400"
+        >
             <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full" />
-        </div>
+        </BaseChartCard>
     );
 };
 
