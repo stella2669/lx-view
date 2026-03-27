@@ -13,6 +13,6 @@ public class TransactionData {
     private int responseTimeMs;
     private String serviceName;
     @com.fasterxml.jackson.annotation.JsonProperty("isError")
-    private boolean isError;
+    private boolean error;
     private int httpStatusCode;
 }

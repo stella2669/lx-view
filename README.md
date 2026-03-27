@@ -1,25 +1,33 @@
 # lx-view
 
-**lx-view**는 관제 대상 에이전트(`lx-view-agent`)로부터 수집된 메트릭 데이터를 실시간으로 모니터링하고 분석하기 위한 통합 대시보드 애플리케이션입니다. 
+**lx-view**는 관제 대상 에이전트(`lx-view-agent`)로부터 수집된 메트릭 데이터를 실시간으로 모니터링하고 분석하기 위한 통합 APM(Application Performance Monitoring) 대시보드 애플리케이션입니다.  
 SpringBoot 기반의 백엔드와 React + TypeScript + Vite 기반의 프론트엔드로 구성되어 있습니다.
+
+---
 
 ## 🚀 기술 스택
 
 ### Frontend
-- **Framework & Library**: React 19, TypeScript
-- **State Management**: Zustand
-- **Styling**: Tailwind CSS (v4), PostCSS
-- **Data Visualization**: ECharts
-- **Real-time Communication**: @stomp/stompjs (WebSocket)
-- **Build Tool**: Vite
+| 분류 | 기술 |
+|------|------|
+| Framework | React 19, TypeScript |
+| State Management | Zustand (selector 패턴으로 과도한 리렌더링 차단) |
+| Styling | Tailwind CSS v4, Vanilla CSS |
+| Data Visualization | Apache ECharts (`echarts-for-react`) |
+| Canvas Animation | Custom `CanvasEngine` + `RequestAnimationFrame` (60fps) |
+| Layout System | `react-grid-layout` (드래그 & 리사이징 대시보드) |
+| Real-time | STOMP over WebSocket (`@stomp/stompjs`) |
+| Build Tool | Vite |
 
 ### Backend
-- **Framework**: Spring Boot 3.2.3, Java 17
-- **Web & API**: WebFlux (Reactive Stack)
-- **Real-time Communication**: WebSocket
-- **Database / ORM**: MariaDB, Spring Data JPA
-- **Monitoring & Logging**: P6Spy (SQL Logging)
-- **Utilities**: Lombok
+| 분류 | 기술 |
+|------|------|
+| Framework | Spring Boot 3.2.3, Java 17 |
+| Web | Spring WebFlux (Reactive Stack) |
+| Real-time | WebSocket (STOMP Broker) |
+| Database | MariaDB + Spring Data JPA |
+| SQL 로깅 | P6Spy |
+| Utilities | Lombok |
 
 ---
 
@@ -27,143 +35,142 @@ SpringBoot 기반의 백엔드와 React + TypeScript + Vite 기반의 프론트�
 
 ```text
 lx-view/
-├── backend/                # Spring Boot 애플리케이션 (API 및 WebSocket 서버)
-├── frontend/               # React + Vite 프론트엔드 애플리케이션
-│   ├── src/                # 프론트엔드 소스 코드
-│   ├── public/             # 정적 리소스
-│   ├── package.json        # 프론트엔드 의존성 관리
-│   └── vite.config.ts      # Vite 빌드 설정
-└── .gitignore              # 최상위 통합 Git 무시 설정
+├── backend/                     # Spring Boot 애플리케이션 (API 및 WebSocket 서버)
+│   └── src/main/java/com/apm/dashboard/
+│       ├── config/              # WebSocket, CORS, JPA 설정
+│       ├── controller/          # REST API 및 WebSocket 컨트롤러
+│       ├── service/             # 비즈니스 로직 (메트릭 집계, 실시간 브로드캐스트)
+│       ├── repository/          # JPA 레포지토리 (MariaDB)
+│       └── model/               # 데이터 모델 (Transaction, JvmMetrics, SqlLog 등)
+│
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── dashboard/       # 대시보드 레이아웃 시스템
+│       │   │   ├── DashboardLayout.tsx       # react-grid-layout 기반 위젯 배치
+│       │   │   └── DashboardPanelWrapper.tsx # 편집 모드 오버레이/삭제 UI 공통화
+│       │   ├── monitor/         # 개별 모니터링 위젯 컴포넌트들
+│       │   │   ├── TransactionFlow.tsx       # 실시간 파티클 애니메이션 (Canvas)
+│       │   │   ├── XViewChart.tsx           # 실시간 스캐터 차트 (X-View, Canvas)
+│       │   │   ├── ResponseStats.tsx        # 응답시간 도넛 + 정상/에러 바 차트
+│       │   │   ├── ActiveServiceChart.tsx   # 활성 서비스 현황 차트
+│       │   │   ├── JvmMetrics.tsx          # JVM CPU/Heap/GC/Thread 메트릭
+│       │   │   ├── SqlMonitorPanel.tsx      # SQL 모니터링 통합 패널
+│       │   │   ├── TopStatsPanels.tsx       # KPI 카드 위젯 5종
+│       │   │   ├── UnifiedErrorList.tsx     # 통합 에러 목록
+│       │   │   └── TransactionListModal.tsx # 드래그 선택 트랜잭션 팝업
+│       │   └── shared/          # 공통 UI 컴포넌트
+│       │       ├── BaseChartCard.tsx        # 모든 위젯의 공통 카드 레이아웃
+│       │       ├── LayoutDropdown.tsx       # 위젯 추가/제거 드롭다운
+│       │       └── ThemeSelector.tsx        # 5가지 테마 선택 UI
+│       ├── core/
+│       │   ├── renderer/
+│       │   │   └── ParticleRenderer.ts      # Canvas 파티클 드로우 유틸리티
+│       │   └── math/
+│       │       └── CoordinateMath.ts        # X-View 좌표 계산 유틸리티
+│       ├── hooks/
+│       │   ├── useCanvasEngine.ts           # requestAnimationFrame 기반 캔버스 엔진
+│       │   ├── useWebSocket.ts             # STOMP WebSocket 구독 훅
+│       │   ├── useChartTheme.ts            # 테마에 반응하는 ECharts 색상 훅
+│       │   ├── useChartResize.ts           # ResizeObserver 기반 ECharts 자동 리사이즈
+│       │   └── useTransactionDetail.ts     # 트랜잭션 상세 조회 Lazy Load 훅
+│       └── store/
+│           ├── useStore.ts                 # 전역 주요 상태 (트랜잭션, JVM, 테마)
+│           └── useDashboardStore.ts        # 대시보드 레이아웃/패널 상태
+│
+├── nginx/                       # Nginx 컨테이너 설정
+├── docker-compose.yml           # 로컬 Nginx 테스트용 Docker Compose
+├── nginx.conf                   # Nginx 프록시 설정
+└── .gitignore
 ```
 
 ---
 
-## 💻 실행 방법
+## 🖥️ 주요 기능
 
-### 로컬 개발 환경
+### 1. 실시간 데이터 스트리밍
+- 에이전트에서 HTTP POST로 전송된 메트릭 배치 데이터를 백엔드에서 수신
+- Spring WebSocket + STOMP를 통해 프론트엔드로 즉시 브로드캐스트
+- Zustand 스토어의 **Selector 패턴**으로 필요한 컴포넌트만 선택적으로 리렌더링
 
-**Frontend (React + Vite)**
-```bash
-cd frontend
-npm install
-npm run dev
-```
+### 2. 5가지 테마 지원
+- **Dark** (기본), **Light**, **Dracula**, **Ocean**, **Solarized Light**
+- CSS Custom Properties (`--bg-base`, `--text-accent` 등)를 통해 전체 앱에 일관된 테마 적용
+- Canvas 컴포넌트도 테마 변경 시 자동으로 色색상 캐시 갱신
 
-**Backend (Spring Boot)**
-```bash
-cd backend
-./gradlew bootRun
-```
+### 3. 커스터마이저블 대시보드 레이아웃
+- **Edit Layout** 버튼으로 편집 모드 진입
+- 모든 위젯을 **드래그 앤 드롭**으로 자유롭게 위치 변경
+- 위젯 우측 하단 핸들로 크기 조절 (48칸 / 25px 행 기준의 세밀한 그리드)
+- 위젯 추가 / 삭제 드롭다운 메뉴
 
----
+### 4. KPI 카드 위젯 (5종)
+| 위젯 | 설명 |
+|------|------|
+| Active Services | 현재 활성 서비스 수 |
+| Total Requests | 총 수신 요청 수 |
+| Total Errors | 총 에러 건수 |
+| TPS | 초당 트랜잭션 수 |
+| JVM Threads | JVM 라이브 스레드 수 |
 
-### 🚀 운영 환경 적용 (Production)
+### 5. Transaction Flow (Canvas 애니메이션)
+- 실시간 트랜잭션을 **REQ → PROCESSING → RES** 흐름으로 파티클 애니메이션으로 표현
+- 각 단계의 파티클 수를 실시간 카운팅하여 표시
+- 최대 2,000개의 파티클을 오프스크린 스프라이트 캐싱(Sprite Caching) 방식으로 초당 60fps 렌더링
 
-운영 환경에서는 프론트엔드와 백엔드를 각각 빌드하여 배포합니다.
+### 6. X-View 스캐터 차트 (Canvas)
+- 최근 5분간 트랜잭션을 시간(X축) × 응답시간(Y축)로 실시간 플로팅
+- **마우스 클릭**: 특정 점 선택 → 트랜잭션 상세 팝업 (에러 스택 트레이스 포함)
+- **드래그 선택**: 구간 박스를 그려 해당 범위 내 트랜잭션 목록을 팝업으로 조회
 
-#### 1. Backend 빌드 및 실행
-Spring Boot 백엔드는 실행 가능한 JAR 패키지로 빌드합니다.
-```bash
-cd backend
-# 테스트를 제외하고 빌드 (운영용)
-./gradlew build -x test
+### 7. Response Stats (ECharts)
+- **도넛 차트**: 응답시간 분포 (< 1s / < 3s / < 5s / > 5s)
+- **바 차트**: 정상(Normal) vs 에러(Error) 건수
+- 차트 클릭 시 해당 카테고리 트랜잭션 목록 팝업 연동
 
-# 생성된 JAR 파일 실행
-java -jar build/libs/backend-0.0.1-SNAPSHOT.jar
-```
+### 8. SQL 모니터링 패널
+- 슬로우 쿼리 Top 50, 최근 에러 쿼리 목록
+- SQL 통계 (총 실행 횟수 / 평균 응답시간 / 슬로우 쿼리 수)
 
-#### 2. Frontend 빌드 및 서빙
-React 프론트엔드는 정적 파일로 빌드한 후 Nginx 등 웹 서버를 통해 서비스합니다.
-```bash
-cd frontend
-npm install
-npm run build
-```
-* 빌드가 완료되면 `frontend/dist` 폴더에 생성되는 파일들을 Nginx의 문서 디렉토리(ex: `/usr/share/nginx/html`)로 배포합니다.
+### 9. JVM 메트릭 차트
+- 실시간 Heap 사용률, CPU Load, GC 횟수/시간, 스레드 수 시계열 라인 차트
 
-#### 💡 Nginx 설정 예시 (Frontend + Backend Proxy)
-프론트엔드 정적 파일 서빙과 백엔드 API/WebSocket(`ws://`) 요청을 한 곳에서 처리하기 위한 Nginx `server` 블록 설정 예시입니다. 로컬 PC에서 5173 등의 포트를 통해 외부 기기(동일망 내 다른 PC) 접근을 허용하려면 `listen` 포트를 변경하세요.
-
-```nginx
-server {
-    listen 80; # 또는 외부 접속 개방용 포트(ex: 5173) 사용
-    server_name 0.0.0.0; # 모든 IP에서의 접근 허용 (보안 설정 유의)
-
-    # 1. Frontend 정적 파일 제공
-    location / {
-        root /usr/share/nginx/html; # frontend/dist 파일이 위치한 경로
-        index index.html index.htm;
-        try_files $uri $uri/ /index.html; # React Router 새로고침 대응
-    }
-
-    # 2. Backend API 및 WebSocket 프록시
-    location /api/ {
-        proxy_pass http://localhost:8080; # 백엔드 서버 주소 (Spring Boot)
-        
-        # WebSocket 지원을 위한 헤더 설정
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
+### 10. 통합 에러 목록 (UnifiedErrorList)
+- 애플리케이션 에러 + SQL 에러를 하나의 테이블에서 통합 조회
 
 ---
 
-### 🐳 로컬에서 운영 환경(Nginx) 구성 테스트하기
+## ⚡ 성능 최적화 이력
 
-Docker를 이용해 자신의 PC에서 실제 배포와 유사하게 Nginx 프록시를 띄워볼 수 있습니다. 프로젝트 루트에 제공된 `docker-compose.yml`과 `nginx.conf`를 활용합니다.
+이 프로젝트는 장시간 실행 시 발생하는 렌더링 렉을 근절하기 위해 7단계의 심층 최적화를 거쳤습니다.
 
-1. **프론트엔드 빌드 (필수)**
-   Nginx 용도로 사용할 정적 파일을 먼저 생성해 줍니다.
-   ```bash
-   cd frontend
-   npm run build
-   ```
-2. **백엔드 서버 켜기**
-   Nginx가 백엔드로 프록시를 보낼 수 있도록 터미널에서 Spring Boot 애플리케이션을 구동합니다.
-   ```bash
-   cd backend
-   
-   # Windows (Command Prompt / PowerShell)
-   .\gradlew.bat bootRun
-   
-   # Linux / Mac
-   ./gradlew bootRun
-   ```
-3. **Nginx 컨테이너 실행**
-   프로젝트 최상위 경로에서 터미널을 열고 다음 명령어를 입력합니다.
-   ```bash
-   docker-compose up -d nginx
-   ```
-4. 브라우저에서 `http://localhost` 에 접속하여 프론트엔드 화면이 잘 뜨고, 백엔드 API/WebSocket 통신이 정상적으로 되는지 확인합니다. 확인이 끝나면 `docker-compose down`으로 종료합니다.
-    *(주의: 외부 컨테이너(Nginx)에서 로컬 8080 포트를 호출할 때 OS 파워셀이나 방화벽 설정에 따라 `host.docker.internal:8080`으로 `nginx.conf`의 proxy_pass 주소를 변경해야 할 수 있습니다.)*
-
-## 📡 API 명세 (API Specification)
-
-### 1️⃣ 대시보드 프론트엔드 조회 API
-프론트엔드 화면 구성을 위해 백엔드에서 데이터를 응답하는 주요 REST API 목록입니다.
-- **SQL 모니터링 (`/api/v1/monitor/sql`)**
-  - `GET /stats`: 지정된 시간(minutes) 단위의 누적/평균 SQL 통계(실행 횟수, 지연 쿼리 수 등)
-  - `GET /slow/top`: 수행 시간이 가장 오래 걸린 Top 50 쿼리 목록
-  - `GET /slow/recent`: 가장 최근 발생한 슬로우/에러 쿼리 목록
-- **에러/예외 모니터링 (`/api/v1/monitor/errors`)**
-  - `GET /recent`: 최근 지정된 분(minutes) 동안 발생한 애플리케이션 및 SQL Unified 에러 목록
-- **트랜잭션 히스토리 (`/api/transactions`)**
-  - `GET /history`: 인메모리에 보관 중인 최근 트랜잭션 목록 반환 (차트 드래그 및 초기 데이터용)
+| 단계 | 문제 | 해결책 |
+|------|------|--------|
+| 1 | Layout Thrashing (매 프레임 `getComputedStyle` 호출) | `useRef` 기반 CSS 변수 캐싱, 테마 변경 시에만 갱신 |
+| 2 | 메모리 누수 (무제한 트랜잭션 배열 증가) | Hard Cap (최대 20,000건) + 배열 복사 방식 개선 |
+| 3 | 과다 리렌더링 (Zustand 전체 스토어 구독) | Selector 패턴으로 컴포넌트별 최소 구독 범위 지정 |
+| 4 | 다크 모드 `shadowBlur` 연산 부하 | 오프스크린 캔버스 스프라이트 캐싱 (9종 미리 그리기) |
+| 5 | `lighter` 블렌딩 모드 GPU 과부하 | 전체 테마 `source-over` 고정 (하드웨어 가속 최대화) |
+| 6 | GC 스파이크 / Stuttering | O(1) 역순 탐색 & Swap-Pop 삭제 + Canvas Native Batching |
+| 7 | V8 엔진 마이크로 오버헤드 | 문자열 HashMap → 3D 배열 인덱싱, 이중 루프 병합, 나눗셈 호이스팅 |
 
 ---
 
-### 2️⃣ Agent 데이터 수신 API `/api/v1/metrics/collect`
-`lx-view-agent`에서 백엔드로 전송하는 메트릭 배치 배열 JSON 페이로드 예시입니다. 배치 처리를 위해 항상 배열(`[]`) 형태로 전송되어야 합니다.
+## 📡 API 명세
 
-### 1. TRANSACTION 타입 데이터
-웹 요청이나 트랜잭션 종료 시 발생하는 메트릭으로, 응답 속도 및 에러 여부를 측정합니다.
+### REST API (프론트엔드 조회용)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| GET | `/api/v1/monitor/sql/stats` | 시간 구간 SQL 통계 |
+| GET | `/api/v1/monitor/sql/slow/top` | Top 50 슬로우 쿼리 |
+| GET | `/api/v1/monitor/sql/slow/recent` | 최근 슬로우/에러 쿼리 |
+| GET | `/api/v1/monitor/errors/recent` | 최근 통합 에러 목록 |
+| GET | `/api/transactions/history` | 최근 트랜잭션 목록 (차트 초기화용) |
 
+### Agent 데이터 수신 API
+`POST /api/v1/metrics/collect` — 배열 형태의 배치 페이로드 수신
+
+#### TRANSACTION 타입
 ```json
 [
   {
@@ -178,11 +185,8 @@ Docker를 이용해 자신의 PC에서 실제 배포와 유사하게 Nginx 프�
   }
 ]
 ```
-*(참고: `txId` 누락 시 백엔드에서 UUID를 자동 부여하지만, 트랜잭션 추적을 위해 Agent에서 생성하여 전송하는 것을 권장합니다.)*
 
-### 2. JVM 타입 데이터
-일정 주기마다 수집되는 JVM 논리/물리적 상태(CPU, 메모리, 스레드 등) 스냅샷 데이터입니다.
-
+#### JVM 타입
 ```json
 [
   {
@@ -190,10 +194,8 @@ Docker를 이용해 자신의 PC에서 실제 배포와 유사하게 Nginx 프�
     "type": "JVM",
     "timestamp": 1735693200000,
     "processCpuLoad": 0.15,
-    "systemCpuLoad": 0.45,
     "heapUsed": 536870912,
     "heapMax": 2147483648,
-    "heapCommitted": 1073741824,
     "heapUsagePercent": 25.0,
     "gcCount": 12,
     "gcTime": 350,
@@ -203,55 +205,86 @@ Docker를 이용해 자신의 PC에서 실제 배포와 유사하게 Nginx 프�
 ]
 ```
 
-### 3. 배치 전송 예시 (권장)
-네트워크 I/O 최적화를 위해 여러 건, 여러 타입의 메트릭을 하나의 배열에 혼합하여 주기적으로 전송합니다.
+---
 
-```json
-[
-  {
-    "agentName": "lx-agent-prod-01",
-    "type": "JVM",
-    "timestamp": 1735693200000,
-    "processCpuLoad": 0.15
-  },
-  {
-    "agentName": "lx-agent-prod-01",
-    "type": "TRANSACTION",
-    "txId": "REQ-1111",
-    "timestamp": 1735693200500,
-    "responseTimeMs": 420,
-    "serviceName": "/api/v1/orders",
-    "isError": true,
-    "httpStatusCode": 500
-  }
-]
+## 💻 실행 방법
+
+### 로컬 개발 환경
+
+```bash
+# Frontend
+cd frontend
+npm install
+npm run dev          # http://localhost:5173 에서 실행
+
+# Backend
+cd backend
+./gradlew bootRun    # http://localhost:8080 에서 실행
+```
+
+### 운영 환경 배포
+
+```bash
+# Backend JAR 빌드
+cd backend
+./gradlew build -x test
+java -jar build/libs/backend-0.0.1-SNAPSHOT.jar
+
+# Frontend 정적 빌드 → Nginx 배포
+cd frontend
+npm run build        # frontend/dist/ 로 출력
+```
+
+#### Nginx 프록시 설정 예시
+```nginx
+server {
+    listen 80;
+    server_name 0.0.0.0;
+
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+```
+
+### Docker로 로컬 Nginx 테스트
+
+```bash
+# 1. 프론트엔드 빌드
+cd frontend && npm run build
+
+# 2. 백엔드 실행
+cd backend && ./gradlew bootRun
+
+# 3. Nginx 컨테이너 실행
+docker-compose up -d nginx
+# → http://localhost 에서 확인
+
+docker-compose down  # 종료
 ```
 
 ---
 
-## 📈 주요 기능
+## 📝 Git Workflow
 
-- **실시간 메트릭 모니터링**: 에이전트에서 전송하는 배치 배열 데이터를 실시간으로 수신받아 ECharts를 활용해 시각화
-- **트랜잭션 드래그 앤 셀렉트 팝업**: 차트의 특정 영역을 마우스로 드래그하여 해당 구간 내 발생한 트랜잭션 상세 목록을 팝업으로 즉시 조회하는 기능 제공
-- **Transaction Flow Theming**: 라이트/다크 모드 등 테마 설정 지원
-- **동적 파티클 및 애니메이션 UI**: 직관적이고 상태를 쉽게 파악할 수 있는 다이나믹 모니터링 UI
+```bash
+# 작업 및 커밋
+git add .
+git commit -m "작업 내용 요약"
 
----
-
-## 📝 통합 버전 관리 (Git Workflow)
-
-1. **작업 및 커밋**
-   ```bash
-   git add .
-   git commit -m "작업 내용 요약"
-   ```
-2. **배포 (dev -> prod)**
-   ```bash
-   git pull origin dev
-   git checkout prod
-   git merge dev
-   git push origin prod
-   git checkout dev
-   ```
-
-*상세한 Git Workflow는 [설명서(또는 내부 가이드)]를 참고하세요.*
+# 배포 (dev → prod)
+git pull origin dev
+git checkout prod
+git merge dev
+git push origin prod
+git checkout dev
+```

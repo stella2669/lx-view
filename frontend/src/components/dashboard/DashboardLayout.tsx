@@ -12,6 +12,7 @@ import ActiveServiceChart from '../monitor/ActiveServiceChart';
 import TransactionFlow from '../monitor/TransactionFlow';
 import ResponseStats from '../monitor/ResponseStats';
 import { UnifiedErrorList } from '../monitor/UnifiedErrorList';
+import { KpiActiveService, KpiTotalRequest, KpiTotalError, KpiTps, KpiJvmThread } from '../monitor/TopStatsPanels';
 
 import DashboardPanelWrapper from './DashboardPanelWrapper';
 import JvmMetrics from '../monitor/JvmMetrics';
@@ -27,6 +28,11 @@ const PanelComponents: Record<PanelType, React.FC<any>> = {
   JvmMetrics,
   SqlMonitorPanel,
   UnifiedErrorList,
+  KpiActiveService,
+  KpiTotalRequest,
+  KpiTotalError,
+  KpiTps,
+  KpiJvmThread
 };
 
 const DashboardLayout: React.FC = () => {
@@ -41,27 +47,23 @@ const DashboardLayout: React.FC = () => {
       <ResponsiveGridLayout
         className="layout"
         layouts={layouts}
-        breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-        cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-        rowHeight={100}
+        breakpoints={{ lg: 0 }}
+        cols={{ lg: 48 }}
+        rowHeight={25}
         onLayoutChange={handleLayoutChange}
         isDraggable={isEditMode}
         isResizable={isEditMode}
         draggableHandle=".dashboard-drag-handle"
-        margin={[16, 16]}
+        margin={[8, 8]}
         containerPadding={[0, 0]}
       >
         {panels.map((panel: DashboardPanel) => {
           const Component = PanelComponents[panel.type];
 
-          const defaultLayoutItem = { x: 0, y: Infinity, w: 4, h: 4, minW: 3, minH: 3 };
-          const layoutItem = layouts.lg?.find(l => l.i === panel.id)
-            || layouts.md?.find(l => l.i === panel.id)
-            || layouts.sm?.find(l => l.i === panel.id)
-            || defaultLayoutItem;
-
+          // React-grid-layout의 완벽한 자동 반응형(Responsive) 처리를 위해
+          // 개별 아이템에 억지로 data-grid를 주입하지 않고 layouts 프롭스에 완전히 위임합니다.
           return (
-            <div key={panel.id} data-grid={layoutItem} className="h-full w-full">
+            <div key={panel.id} className="h-full w-full">
               <DashboardPanelWrapper
                 panelId={panel.id}
                 isEditMode={isEditMode}

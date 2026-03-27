@@ -9,7 +9,9 @@ import BaseChartCard from '../shared/BaseChartCard';
 
 // X-View 스캐터 차트 설정 상수
 const TIME_WINDOW_MS = 5 * 60 * 1000; // 차트에 표시할 과거 시간 범위 (5분)
-const Y_MAX_MS = 6500; // Y축(응답시간)의 최대 상한선 기준. 이 이상 응답시간도 화면 밖으로 가려지지 않게 처리됨.
+const MIN_Y_MAX_MS = 5000; // Y축(응답시간)의 최소 상한선
+const BUCKET_SIZE_MS = 10000; // 최댓값 산출 최적화를 위한 버킷 크기 (10초)
+const BUCKET_COUNT = TIME_WINDOW_MS / BUCKET_SIZE_MS; // 버킷 개수 (30개)
 
 const XViewChart: React.FC = () => {
     // 트랜잭션을 마우스로 클릭했을 때 상세 팝업을 띄우기 위한 커스텀 훅 (비동기 Lazy Load)
@@ -21,6 +23,24 @@ const XViewChart: React.FC = () => {
 
     const stylesCacheRef = React.useRef<any>(null);
     const lastThemeRef = React.useRef<string | null>(null);
+    const chartHeightRef = React.useRef<number>(5000);
+
+    // [최적화] Y축 최대값 계산 로직 함수화 (onDraw, onHitTest 등에서 공통 사용)
+    const getYMax = useCallback((transactions: any[], now: number) => {
+        if (transactions.length === 0) return MIN_Y_MAX_MS;
+        const buckets = new Int32Array(BUCKET_COUNT);
+        for (let i = 0; i < transactions.length; i++) {
+            const tx = transactions[i];
+            const age = now - tx.timestamp;
+            const bIdx = Math.floor(age / BUCKET_SIZE_MS);
+            if (bIdx >= 0 && bIdx < BUCKET_COUNT && tx.responseTimeMs > buckets[bIdx]) {
+                buckets[bIdx] = tx.responseTimeMs;
+            }
+        }
+        let maxRT = 0;
+        for (let i = 0; i < BUCKET_COUNT; i++) if (buckets[i] > maxRT) maxRT = buckets[i];
+        return Math.max(MIN_Y_MAX_MS, maxRT + 1000);
+    }, []);
 
     const getCachedStyles = useCallback(() => {
         const currentTheme = useStore.getState().theme;
@@ -48,22 +68,27 @@ const XViewChart: React.FC = () => {
         const now = Date.now();
         const startTime = now - TIME_WINDOW_MS; // 화면 왼쪽 끝의 기준 시간
 
+        const yMax = getYMax(transactions, now);
+        chartHeightRef.current = yMax; // 최신 yMax를 Ref에 저장하여 비동기 상황 대비
+
         // 1. 차트 배경의 가로선(Y축 그리드) 및 라벨 렌더링
         ctx.strokeStyle = gridColor;
         ctx.lineWidth = 1;
         ctx.fillStyle = textColor;
         ctx.font = '10px Inter, sans-serif';
 
-        // Y축 그리드 및 라벨
+        // Y축 그리드 및 라벨 (최대 5개~10개 정도로 눈금 자동 조절)
         ctx.setLineDash([5, 5]);
         ctx.textAlign = 'right';
         ctx.textBaseline = 'bottom';
         ctx.beginPath();
-        for (let i = 1; i <= Math.floor(Y_MAX_MS / 1000); i++) {
-            const y = height - (height * (i * 1000) / Y_MAX_MS);
+        
+        const step = yMax > 15000 ? 5000 : 2500; // 눈금 간격 (2.5s 또는 5s)
+        for (let val = step; val < yMax; val += step) {
+            const y = height - (height * val / yMax);
             ctx.moveTo(35, y); // 라벨 영역(35px)을 띄우고 선을 그리기 시작
             ctx.lineTo(width, y);
-            ctx.fillText(`${i}s`, 30, y - 2);
+            ctx.fillText(`${(val / 1000).toFixed(1)}s`, 30, y - 2);
         }
         ctx.stroke();
 
@@ -120,51 +145,88 @@ const XViewChart: React.FC = () => {
         ctx.fillText('Response Time (ms)', 0, 0);
         ctx.restore();
 
-        // Highlight selected dot variables
-        let selectedTx: any = null;
+        // [정밀 매칭] 렌더링 루프 시작 전에 선택된 대상을 먼저 확정 (Object Reference 기반)
+        // [정밀 매칭] selectedTxId로 정확한 객체 매칭 유도
+        let selectedTxObj: any = null;
+        if (selectedTxId) {
+            for (let i = transactions.length - 1; i >= 0; i--) {
+                const tx = transactions[i];
+                if (tx.id === selectedTxId) {
+                    selectedTxObj = tx;
+                    break;
+                }
+            }
+        }
         let sx = 0, sy = 0;
 
-        // 2. 수만 개의 트랜잭션 데이터를 반복하면서 점(Dot)을 찍음
-        transactions.forEach(tx => {
-            // 차트 표시 범위(5분)를 벗어난 너무 오래된 데이터는 무시 (최적화)
-            if (tx.timestamp < startTime) return;
+        // [성능 극대화] 수만 개의 트랜잭션을 매 프레임 개별로 drawDot(beginPath -> arc -> fill) 호출하면 
+        // 초당 수치십만 번의 WebGL 상태 변경(State Change)이 일어나 GPU 오버헤드(Stuttering)가 발생합니다.
+        // 또한 Path2D 변수를 매 프레임 생성하면 무거운 가비지 컬렉터(GC) 스파이크가 발생하여 브라우저가 버벅입니다.
+        // 대신 네이티브 C++ 바인딩 수준에서 가장 빠른 ctx.beginPath() 내부 일괄 궤도 수집법을 적용합니다.
+        
+        // [마이크로 최적화] 매 렌더링마다 2만 번 반복되는 루프 안의 무거운 함수 호출이나 나눗셈을 바깥으로 호이스팅(Hoisting)하여 곱셈 상수화 처리합니다.
+        const chartWidth = width - 35;
+        const chartHeight = height - 20;
+        const widthRatio = chartWidth / TIME_WINDOW_MS;
+        const heightRatio = chartHeight / yMax;
 
-            // X좌표: 흐른 시간에 비례하게 화면 넓이로 환산하되 축 레이블 여백(35px)을 고려
-            const chartWidth = width - 35;
-            const x = 35 + CoordinateMath.calculateX(tx.timestamp - startTime, TIME_WINDOW_MS, chartWidth);
+        // 1. 정상 트랜잭션 Batch Draw (Draw Call 딱 1번)
+        ctx.fillStyle = 'rgba(14, 165, 233, 0.7)';
+        ctx.beginPath();
+        for (let i = 0; i < transactions.length; i++) {
+            const tx = transactions[i];
+            if (tx.timestamp < startTime || tx.isError) continue;
+            
+            // 함수 호출 오버헤드를 막고 나눗셈 대신 빠른 곱셈 연산 적용
+            const x = 35 + (tx.timestamp - startTime) * widthRatio;
+            const y = chartHeight - (Math.min(tx.responseTimeMs, yMax) * heightRatio);
+            
+            ctx.moveTo(x + 2.5, y);
+            ctx.arc(x, y, 2.5, 0, Math.PI * 2);
 
-            // Y좌표: 화면 하단 축 텍스트 여백(20px) 위부터 최상단까지 환산 (0 ~ height-20)
-            const chartHeight = height - 20;
-            const y = chartHeight - (chartHeight * Math.min(tx.responseTimeMs, Y_MAX_MS) / Y_MAX_MS);
-
-            // X-View 표준 색상 기준 (에러면 빨강, 정상이면 스카이블루)
-            const color = tx.isError ? 'rgba(239, 68, 68, 0.9)' : 'rgba(14, 165, 233, 0.7)'; // tailwind red-500, sky-500
-
-            // 점 그리기 유틸리티 함수 호출
-            ParticleRenderer.drawDot(ctx, x, y, color, tx.isError ? 3.5 : 2.5);
-
-            // 루프 도중 현재 클릭된 트랜잭션(selectedTxId)을 발견했다면 따로 빼둠
-            // (펄스 링 이펙트를 모든 점들 가장 위에 덮어씌워야 하므로 마지막에 그림)
-            if (tx.id === selectedTxId) {
-                selectedTx = tx;
+            // [정밀 매칭] 정확히 선택된 그 객체인 경우 좌표 캡처
+            if (tx === selectedTxObj) {
                 sx = x;
                 sy = y;
             }
-        });
+        }
+        ctx.fill();
+
+        // 2. 에러 트랜잭션 Batch Draw (Draw Call 딱 1번)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+        ctx.beginPath();
+        for (let i = 0; i < transactions.length; i++) {
+            const tx = transactions[i];
+            if (tx.timestamp < startTime || !tx.isError) continue;
+            
+            // 함수 호출 오버헤드를 막고 나눗셈 대신 빠른 곱셈 연산 적용
+            const x = 35 + (tx.timestamp - startTime) * widthRatio;
+            const y = chartHeight - (Math.min(tx.responseTimeMs, yMax) * heightRatio);
+            
+            ctx.moveTo(x + 3.5, y);
+            ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+
+            // [정밀 매칭] 정확히 선택된 그 객체인 경우 좌표 캡처
+            if (tx === selectedTxObj) {
+                sx = x;
+                sy = y;
+            }
+        }
+        ctx.fill();
 
         // 3. 대상이 있다면 네온 펄스 링 그리기
-        if (selectedTx) {
-            const color = selectedTx.isError ? 'rgba(239, 68, 68, 1)' : 'rgba(99, 102, 241, 1)'; // red-500 or indigo-500
+        if (selectedTxObj) {
+            const color = selectedTxObj.isError ? 'rgba(239, 68, 68, 1)' : 'rgba(99, 102, 241, 1)'; // red-500 or indigo-500
             ParticleRenderer.drawPulseRing(ctx, sx, sy, time, color);
         }
 
         // 4. 다중 선택된 펄스 효과 그리기
-        selectedTransactions.forEach(tx => {
+        selectedTransactions.forEach((tx: any) => {
             if (tx.timestamp < startTime) return;
             const chartWidth = width - 35;
             const x = 35 + CoordinateMath.calculateX(tx.timestamp - startTime, TIME_WINDOW_MS, chartWidth);
             const chartHeight = height - 20;
-            const y = chartHeight - (chartHeight * Math.min(tx.responseTimeMs, Y_MAX_MS) / Y_MAX_MS);
+            const y = chartHeight - (chartHeight * Math.min(tx.responseTimeMs, yMax) / yMax);
             
             ctx.beginPath();
             ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -193,18 +255,22 @@ const XViewChart: React.FC = () => {
         const transactions = useStore.getState().transactions;
         const now = Date.now();
         const startTime = now - TIME_WINDOW_MS;
+        const yMax = getYMax(transactions, now);
+
+        const chartWidth = width - 35;
+        const chartHeight = height - 20;
+        const widthRatio = chartWidth / TIME_WINDOW_MS;
+        const heightRatio = chartHeight / yMax;
 
         // Search backwards to match top visible (last drawn = topmost)
         for (let i = transactions.length - 1; i >= 0; i--) {
             const tx = transactions[i];
             if (tx.timestamp < startTime) continue;
 
-            const chartWidth = width - 35;
-            const chartHeight = height - 20;
-            const px = 35 + CoordinateMath.calculateX(tx.timestamp - startTime, TIME_WINDOW_MS, chartWidth);
-            const py = chartHeight - (chartHeight * Math.min(tx.responseTimeMs, Y_MAX_MS) / Y_MAX_MS);
+            const px = 35 + (tx.timestamp - startTime) * widthRatio;
+            const py = chartHeight - (Math.min(tx.responseTimeMs, yMax) * heightRatio);
 
-            if (CoordinateMath.getDistance(px, py, x, y) < 8) { // 8px tolerance radius
+            if (CoordinateMath.getDistance(px, py, x, y) < 10) { 
                 return tx;
             }
         }
@@ -254,14 +320,19 @@ const XViewChart: React.FC = () => {
              // 최근 것부터 탐색하되 최대 표시 개수 제한 (성능/UI 고려)
              const MAX_SELECT = 50; 
 
+             const yMax = getYMax(transactions, now);
+
+             const chartWidth = width - 35;
+             const chartHeight = height - 20;
+             const widthRatio = chartWidth / TIME_WINDOW_MS;
+             const heightRatio = chartHeight / yMax;
+
              for (let i = transactions.length - 1; i >= 0; i--) {
                  const tx = transactions[i];
                  if (tx.timestamp < startTime) continue;
 
-                 const chartWidth = width - 35;
-                 const chartHeight = height - 20;
-                 const px = 35 + CoordinateMath.calculateX(tx.timestamp - startTime, TIME_WINDOW_MS, chartWidth);
-                 const py = chartHeight - (chartHeight * Math.min(tx.responseTimeMs, Y_MAX_MS) / Y_MAX_MS);
+                 const px = 35 + (tx.timestamp - startTime) * widthRatio;
+                 const py = chartHeight - (Math.min(tx.responseTimeMs, yMax) * heightRatio);
 
                  // 점의 중심좌표 px, py가 박스(bx, by, bw, bh) 안에 포함되는지 확인
                  if (px >= bx && px <= bx + bw && py >= by && py <= by + bh) {
@@ -272,7 +343,7 @@ const XViewChart: React.FC = () => {
 
              setSelectedTransactions(selected);
         }
-    }, []);
+    }, [loadDetail]);
 
     const { canvasRef } = useCanvasEngine({
         motionBlur: false, // Scatter chart doesn't need blur
@@ -305,15 +376,53 @@ const XViewChart: React.FC = () => {
                         </div>
                     ) : detailData ? (
                         <div className="text-sm space-y-3">
-                            <p><span className="text-gray-400 w-20 inline-block">TxID:</span> <span className="text-xs text-indigo-300 font-mono">{detailData.id}</span></p>
-                            <p><span className="text-gray-400 w-20 inline-block">Time:</span> {new Date(detailData.timestamp).toLocaleTimeString()}</p>
-                            <p className="flex"><span className="text-red-400 w-20 flex-shrink-0 font-semibold">Error:</span> <span className="text-red-300 break-words">{detailData.message}</span></p>
-                            <div className="mt-4 pt-4 border-t border-gray-700">
-                                <p className="text-gray-400 mb-2">Stack Trace</p>
-                                <pre className="text-xs text-gray-400 bg-gray-950 p-3 rounded overflow-x-auto max-w-sm border border-gray-800">
-                                    {detailData.stackTrace}
-                                </pre>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="col-span-3 pb-1 border-b border-gray-700/50 flex justify-between">
+                                    <span className="text-indigo-300 font-mono">{detailData.txId}</span>
+                                    <span className={`font-bold ${(detailData.isError || detailData.error || detailData.httpStatusCode >= 400) ? 'text-red-400' : 'text-green-400'}`}>
+                                        {detailData.httpStatusCode}
+                                    </span>
+                                </div>
+                                <div className="text-gray-400">Service</div>
+                                <div className="col-span-2 text-gray-200 truncate">{detailData.serviceName}</div>
+                                
+                                <div className="text-gray-400">Time</div>
+                                <div className="col-span-2 text-gray-200">{new Date(detailData.timestamp).toLocaleString()}</div>
+                                
+                                <div className="text-gray-400">Duration</div>
+                                <div className="col-span-2 text-indigo-400 font-bold">{detailData.responseTimeMs} ms</div>
+
+                                {detailData.httpMethod && (
+                                    <>
+                                        <div className="text-gray-400">Request</div>
+                                        <div className="col-span-2 text-gray-200">
+                                            <span className="text-indigo-400 font-bold mr-2">{detailData.httpMethod}</span>
+                                            {detailData.requestUrl}
+                                        </div>
+                                    </>
+                                )}
                             </div>
+
+                            {(detailData.isError || detailData.error || detailData.httpStatusCode >= 400) && (
+                                <div className="mt-4 pt-4 border-t border-gray-700">
+                                    <p className="text-red-400 font-semibold mb-1 flex items-center gap-1">
+                                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                                        {detailData.exceptionName || 'Error Detail'}
+                                    </p>
+                                    <p className="text-xs text-red-300 mb-3 bg-red-950/30 p-2 rounded border border-red-900/50">
+                                        {detailData.errorMessage || 'No error message available'}
+                                    </p>
+                                    
+                                    {detailData.stackTrace && (
+                                        <>
+                                            <p className="text-gray-400 mb-2 text-xs">Stack Trace</p>
+                                            <pre className="text-[10px] leading-tight text-gray-400 bg-gray-950 p-3 rounded overflow-x-auto max-h-40 border border-gray-800 custom-scrollbar font-mono">
+                                                {detailData.stackTrace}
+                                            </pre>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ) : null}
                 </div>

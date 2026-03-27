@@ -20,6 +20,7 @@ public class MetricSaveService {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final TransactionService transactionService;
+    private final TransactionDetailService transactionDetailService;
 
     /**
      * 에이전트로부터 수신한 메트릭 배치 데이터를 비동기적으로 처리하고 매핑합니다.
@@ -58,6 +59,8 @@ public class MetricSaveService {
                     if (jvmData != null) {
                         jvmMetrics.add(jvmData);
                     }
+                } else if ("ERROR_DETAIL".equalsIgnoreCase(type)) {
+                    transactionDetailService.saveDetail(metric);
                 }
             }
 
@@ -69,7 +72,10 @@ public class MetricSaveService {
 
             // [Broadcast] 파싱된 JVM 메트릭 브로드캐스트 (최신 1건 발송 기준)
             if (!jvmMetrics.isEmpty()) {
-                messagingTemplate.convertAndSend("/topic/jvm-metrics", jvmMetrics.get(jvmMetrics.size() - 1));
+                JvmMetricsData lastJvm = jvmMetrics.get(jvmMetrics.size() - 1);
+                if (lastJvm != null) {
+                    messagingTemplate.convertAndSend("/topic/jvm-metrics", lastJvm);
+                }
             }
 
             if (log.isInfoEnabled()) {

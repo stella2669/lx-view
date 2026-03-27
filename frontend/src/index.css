@@ -85,18 +85,25 @@ body,
 }
 
 /* Dashboard Edit Mode & react-grid-layout overrides */
+/* Dashboard Edit Mode & react-grid-layout overrides */
 .react-resizable-handle {
   z-index: 50 !important;
-  width: 20px !important;
-  height: 20px !important;
+  width: 24px !important;
+  height: 24px !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  position: absolute !important;
+  cursor: se-resize !important;
 }
 .react-resizable-handle::after {
+  content: "" !important;
+  position: absolute !important;
   border-right: 3px solid #22d3ee !important;
   border-bottom: 3px solid #22d3ee !important;
-  width: 10px !important;
-  height: 10px !important;
-  right: 5px !important;
-  bottom: 5px !important;
+  width: 12px !important;
+  height: 12px !important;
+  right: 6px !important;
+  bottom: 6px !important;
 }
 
 /* Edit Mode Background Grid Pattern */

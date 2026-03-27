@@ -33,6 +33,7 @@ export class CanvasEngine<T> {
     public mouseY: number = -1;
 
     // 드래그 상태 관리
+    private isMouseDown: boolean = false;
     private isDragging: boolean = false;
     private dragStartX: number = -1;
     private dragStartY: number = -1;
@@ -66,6 +67,17 @@ export class CanvasEngine<T> {
         this.mouseX = e.clientX - bounds.left;
         this.mouseY = e.clientY - bounds.top;
 
+        if (this.isMouseDown && !this.isDragging) {
+            const dx = Math.abs(this.mouseX - this.dragStartX);
+            const dy = Math.abs(this.mouseY - this.dragStartY);
+            if (dx > 5 || dy > 5) {
+                this.isDragging = true;
+                if (this.options.onDragStart) {
+                    this.options.onDragStart(this.dragStartX, this.dragStartY);
+                }
+            }
+        }
+
         if (this.isDragging && this.options.onDrag) {
             this.options.onDrag(this.dragStartX, this.dragStartY, this.mouseX, this.mouseY);
         }
@@ -93,34 +105,30 @@ export class CanvasEngine<T> {
         const bounds = this.canvas.getBoundingClientRect();
         this.dragStartX = e.clientX - bounds.left;
         this.dragStartY = e.clientY - bounds.top;
-        this.isDragging = true;
-
-        if (this.options.onDragStart) {
-            this.options.onDragStart(this.dragStartX, this.dragStartY);
-        }
+        this.isMouseDown = true;
+        this.isDragging = false;
     };
 
     private handleMouseUp = (e: MouseEvent) => {
-        if (!this.isDragging) return;
+        if (!this.isMouseDown) return;
 
         const bounds = this.canvas.getBoundingClientRect();
         const endX = e.clientX - bounds.left;
         const endY = e.clientY - bounds.top;
 
-        // 마우스가 살짝만 움직여도 드래그로 인식되는 것을 방지하기 위한 임계값 (예: 5px)
-        const dx = Math.abs(endX - this.dragStartX);
-        const dy = Math.abs(endY - this.dragStartY);
-
-        if (dx > 5 || dy > 5) {
+        if (this.isDragging) {
             if (this.options.onDragEnd) {
                 this.options.onDragEnd(this.dragStartX, this.dragStartY, endX, endY);
             }
+            // 드래그 종료 후 발생하는 클릭 이벤트를 지연시켜 무시하게 함
+            setTimeout(() => {
+                this.isDragging = false;
+                this.isMouseDown = false;
+            }, 50);
+        } else {
+            this.isMouseDown = false;
+            this.isDragging = false;
         }
-        
-        // requestAnimationFrame이 클릭보다 늦게 처리될 수 있으므로 약간의 지연 후 isDragging 해제
-        setTimeout(() => {
-             this.isDragging = false;
-        }, 0);
     };
 
     // 캔버스 밖으로 마우스가 나갔을 때 드래그 종료 처리

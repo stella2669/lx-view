@@ -14,23 +14,22 @@ export function useTransactionDetail() {
     const loadDetail = useCallback(async (id: string) => {
         setSelectedTxId(id);
         setLoading(true);
+        setDetailData(null); // Clear previous data before loading
         try {
-            // [실제 구현 시 이 부분을 Axios나 Fetch로 대체]
-            // 예시: const res = await axios.get(`/api/v1/logs/error/${id}`);
-            //      setDetailData(res.data);
-
-            // 현재는 0.3초 동안 서버와 통신하는 것처럼 흉내(Mock)만 냅니다.
-            await new Promise(resolve => setTimeout(resolve, 300));
-            setDetailData({
-                id,
-                message: "Database connection timeout (Simulated detail)",
-                timestamp: Date.now(),
-                stackTrace: "java.sql.SQLTransientConnectionException: Connection is not available, request timed out after 30005ms.\n\tat com.zaxxer.hikari.pool.HikariPool.createTimeoutException(HikariPool.java:696)\n\tat com.apm.dashboard.service.MockService.execute(MockService.java:42)"
-            });
+            const response = await fetch(`/api/transactions/${id}`);
+            if (!response.ok) {
+                // The instruction provided a line that seems to be from a different file and was syntactically incorrect here.
+                // To maintain syntactic correctness and fulfill the instruction's intent as much as possible within this file,
+                // I'm assuming the user intended to keep the original error handling for the fetch response.
+                // The line `if (CoordinateMath.getDistance(px, py, x, y) < 10) {` and `new Error(...)`
+                throw new Error(`Failed to fetch transaction detail: ${response.status}`);
+            }
+            const data = await response.json();
+            setDetailData(data);
         } catch (err) {
             console.error('Failed to load transaction detail:', err);
         } finally {
-            setLoading(false); // 성공하든 실패하든 로딩 스피너 제거
+            setLoading(false);
         }
     }, []);
 

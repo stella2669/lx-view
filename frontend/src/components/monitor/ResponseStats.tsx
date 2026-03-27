@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useStore } from '../../store/useStore';
 import type { TransactionData } from '../../store/useStore';
@@ -6,10 +6,14 @@ import TransactionListModal from './TransactionListModal';
 import { BarChart2 } from 'lucide-react';
 import BaseChartCard from '../shared/BaseChartCard';
 import { useChartTheme } from '../../hooks/useChartTheme';
+import { useChartResize } from '../../hooks/useChartResize';
 
 const ResponseStats: React.FC = () => {
     const responseStats = useStore(state => state.responseStats);
     const { colors, defaultTooltip, defaultGrid, defaultXAxis, defaultYAxis } = useChartTheme();
+
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { registerChart } = useChartResize(containerRef);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
@@ -32,7 +36,12 @@ const ResponseStats: React.FC = () => {
         grid: {
             ...defaultGrid,
             left: '55%',
-            right: '5%'
+            right: '5%',
+            top: '10%',
+            bottom: '15%',
+            // Y축 레이블(5,000, 10,000 등)이 길어져도 grid 영역 밖으로 삐져나와
+            // 왼쪽 도넛 차트를 가리는 현상을 방지합니다.
+            containLabel: true
         },
         xAxis: [
             {
@@ -48,7 +57,10 @@ const ResponseStats: React.FC = () => {
             {
                 name: 'Latency',
                 type: 'pie',
-                radius: ['45%', '75%'],
+                // [버그픽스] ECharts 기준: 반지름은 min(width, height) 기준 %
+                // 좌측 클리핑 방지를 위해 center[0](%) >= 반지름(%) 조건이 반드시 성립해야 함
+                // center_x = 28%, 바깥 반지름 = 27% → 28 > 27 → 어떠한 종횡비에서도 좌측 삐져나옴 없음
+                radius: ['25%', '45%'],
                 center: ['25%', '50%'],
                 avoidLabelOverlap: false,
                 itemStyle: {
@@ -123,13 +135,17 @@ const ResponseStats: React.FC = () => {
                 isEmpty={totalRequests === 0}
                 emptyMessage="Awaiting transaction data..."
             >
-                <ReactECharts
-                    option={option}
-                    style={{ height: '100%', width: '100%', position: 'absolute', top: 0, bottom: 0 }}
-                    opts={{ renderer: 'canvas' }}
-                    notMerge={false}
-                    onEvents={chartEvents}
-                />
+                {/* containerRef로 ResizeObserver가 패널 크기 변화를 감지합니다 */}
+                <div ref={containerRef} className="absolute inset-0 w-full h-full">
+                    <ReactECharts
+                        option={option}
+                        style={{ height: '100%', width: '100%' }}
+                        opts={{ renderer: 'canvas' }}
+                        notMerge={false}
+                        onEvents={chartEvents}
+                        onChartReady={registerChart}
+                    />
+                </div>
             </BaseChartCard>
 
             <TransactionListModal

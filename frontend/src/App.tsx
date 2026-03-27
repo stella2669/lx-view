@@ -2,7 +2,6 @@ import React from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { ThemeSelector } from './components/shared/ThemeSelector';
 import { LayoutDropdown } from './components/shared/LayoutDropdown';
-import TopStats from './components/monitor/TopStats';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 
 const App: React.FC = () => {
@@ -29,8 +28,6 @@ const App: React.FC = () => {
           </div>
         </div>
       </header>
-
-      <TopStats />
 
       <main className="flex flex-col gap-4 pb-12 mt-6">
         <div className="min-h-[700px]">

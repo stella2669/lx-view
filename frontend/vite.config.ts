@@ -8,5 +8,15 @@ export default defineConfig({
     host: true, // 외부 접속 허용 (0.0.0.0)
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/ws-apm': {
+        target: 'http://localhost:8080',
+        ws: true,
+      }
+    }
   },
 })
