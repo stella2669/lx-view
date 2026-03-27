@@ -55,8 +55,8 @@ function getSprite(colorIdx: number, colorStr: string, size: number, isLight: bo
 const TransactionFlow: React.FC = () => {
     // We keep a local particles ref to manage animation without react re-renders
     const particlesRef = useRef<Particle[]>([]);
-    const lastTxTimeRef = useRef<number>(0);
-    const spawnQueueRef = useRef<any[]>([]); // Queue to smooth out bursts
+    // -1 = 미초기화(Sentinel). 첫 프레임에서는 기준점만 잡고 파티클을 spawn하지 않아 초기 폭주를 방지합니다.
+    const lastMetricsRef = useRef({ req: -1, res: -1 });
 
     const stylesCacheRef = useRef<any>(null);
     const lastThemeRef = useRef<string | null>(null);
@@ -77,6 +77,62 @@ const TransactionFlow: React.FC = () => {
         }
         return stylesCacheRef.current;
     };
+
+    const spawnParticles = (count: number, state: 'REQ' | 'RES', xMin: number, xMax: number, yCenter: number, yRange: number, baseSpeedX: number) => {
+        for (let i = 0; i < count; i++) {
+            if (particlesRef.current.length > 2000) break; // Hard Cap
+
+            particlesRef.current.push({
+                x: xMin + Math.random() * (xMax - xMin),
+                y: yCenter + (Math.random() - 0.5) * yRange,
+                speedX: baseSpeedX + Math.random() * 2,
+                speedY: (Math.random() - 0.5) * 2,
+                colorIdx: Math.floor(Math.random() * 3), // 3 palette colors
+                size: Math.floor(2 + Math.random() * 3), // 2, 3, or 4
+                state: state,
+                waitTime: state === 'REQ' ? Math.max(10, Math.floor(Math.random() * 30)) : 0
+            });
+        }
+    };
+
+    const synchronizeProcessingParticles = (targetCount: number, rectX: number, rectY: number, rectW: number, rectH: number) => {
+        let currentProcessCount = 0;
+        const processParticles: number[] = [];
+        
+        for (let i = 0; i < particlesRef.current.length; i++) {
+            if (particlesRef.current[i].state === 'PROCESSING') {
+                currentProcessCount++;
+                processParticles.push(i);
+            }
+        }
+
+        if (currentProcessCount < targetCount && particlesRef.current.length < 2000) {
+            // Need more particles
+            const spawnCount = Math.min(targetCount - currentProcessCount, 10); // Batch spawn to avoid lag
+            for (let i = 0; i < spawnCount; i++) {
+                particlesRef.current.push({
+                    x: rectX + 10 + Math.random() * (rectW - 20),
+                    y: rectY + 10 + Math.random() * (rectH - 20),
+                    speedX: 0,
+                    speedY: 0,
+                    colorIdx: Math.floor(Math.random() * 3),
+                    size: Math.floor(2 + Math.random() * 3),
+                    state: 'PROCESSING',
+                    waitTime: 10 + Math.random() * 50
+                });
+            }
+        } else if (currentProcessCount > targetCount) {
+             // Too many particles, smoothly transition some to RES
+             let diff = currentProcessCount - targetCount;
+             for (let i = processParticles.length - 1; i >= 0 && diff > 0; i--) {
+                 const idx = processParticles[i];
+                 const p = particlesRef.current[idx];
+                 p.waitTime = 0; // Force them to move out
+                 diff--;
+             }
+        }
+    };
+
 
     const onDraw = (ctx: CanvasRenderingContext2D, width: number, height: number, time: number) => {
         // [수정됨] ctx.clearRect(...)는 CanvasEngine이 내부적으로 motionBlur와 함께 처리하므로 제거해야 합니다.
@@ -115,69 +171,37 @@ const TransactionFlow: React.FC = () => {
         ctx.lineTo(width, height * 0.6);
         ctx.stroke();
 
-        // 1. Check for new transactions and add them to the spawn queue
-        // Read latest transactions dynamically to bypass React render cycle (60fps stutter fix)
-        const currentTxs = useStore.getState().transactions;
-        if (currentTxs.length > 0) {
-            if (lastTxTimeRef.current === 0) {
-                // On first mount, take the last 50 transactions to prime the pump and start flowing!
-                const initialBatch = currentTxs.slice(-50);
-                spawnQueueRef.current.push(...initialBatch);
-                lastTxTimeRef.current = initialBatch[initialBatch.length - 1].timestamp;
-            } else {
-                // [성능 극대화] 전체 배열 2만 개를 매 프레임 .filter()로 스캔하면 초당 120만 회 루프로 브라우저가 버버벅거립니다(GC Spike). (Stuttering 원인)
-                // 대신 최신 데이터부터 역순 탐색 후 즉시 break 처리하여 연산량을 거의 0으로 만듭니다.
-                const newTxs: any[] = [];
-                for (let i = currentTxs.length - 1; i >= 0; i--) {
-                    if (currentTxs[i].timestamp <= lastTxTimeRef.current) break;
-                    newTxs.push(currentTxs[i]);
-                }
-                newTxs.reverse(); // 뒤에서부터 가져왔으므로 순서 복구
+        // 1. Data-Driven Synchronization
+        const storeState = useStore.getState();
+        const activeServices = storeState.activeServices;
+        const totalActive = activeServices.reduce((sum: any, s: any) => sum + s.activeCount, 0);
+        
+        // [버그픽스] 새로고침 시 20개 폭주 방지: 최초 마운트 프레임에서는 기준점만 설정하고 spawn 금지.
+        const currentReq = storeState.transactions.length;
+        if (lastMetricsRef.current.req === -1) {
+            // 첫 프레임: 현재 스토어 상태로 기준점(Baseline) 동기화. delta 없음 -> spawn 없음.
+            lastMetricsRef.current.req = currentReq;
+        } else {
+            // 이후 프레임: 실제 신규 유입분만 delta로 계산하여 spawn.
+            const reqDelta = Math.max(0, currentReq - lastMetricsRef.current.req);
+            lastMetricsRef.current.req = currentReq;
 
-                if (newTxs.length > 0) {
-                    spawnQueueRef.current.push(...newTxs);
-                    // Update latest seen timestamp
-                    lastTxTimeRef.current = newTxs[newTxs.length - 1].timestamp;
-                }
+            if (reqDelta > 0) {
+                spawnParticles(Math.min(reqDelta, 5), 'REQ', 0, reqWidth * 0.2, height * 0.5, height * 0.2, 2);
+            } else if (totalActive > 0 && Math.random() < 0.05) {
+                // totalActive가 있을 때만 소량 트리클링 (10% -> 5% 확률로 낮춤)
+                spawnParticles(1, 'REQ', 0, 10, height * 0.5, height * 0.2, 2);
             }
         }
 
-        // 2. Smoothly spawn particles from the queue (bursts come every 5s)
-        if (spawnQueueRef.current.length > 0) {
-            // [메모리 팽창 방지] 대기열 무한 증식(Leak) 강제 억제 캡(Hard Cap)
-            if (spawnQueueRef.current.length > 1000) {
-                spawnQueueRef.current = spawnQueueRef.current.slice(-1000);
-            }
+        // Synchronize PROCESSING area directly with totalActive counts
+        // Map 1 particle per 5 active requests (approximate density)
+        const targetProcessingParticles = Math.min(200, Math.floor(totalActive / 5)); 
+        synchronizeProcessingParticles(targetProcessingParticles, reqWidth, tubeY1, processingWidth, tubeY2 - tubeY1);
 
-            const spawnRate = Math.max(0.5, spawnQueueRef.current.length / 60);
-            let spawnCount = Math.floor(spawnRate);
-            if (Math.random() < (spawnRate - spawnCount)) spawnCount += 1;
-
-            if (particlesRef.current.length > 2000) spawnCount = 0;
-
-            for (let i = 0; i < spawnCount; i++) {
-                const tx = spawnQueueRef.current.shift();
-                if (!tx) break;
-
-                const actualWaitTimeMs = tx.responseTimeMs;
-                const waitFrames = Math.max(10, Math.floor(actualWaitTimeMs / (3000 / 60)));
-
-                particlesRef.current.push({
-                    x: 0,
-                    y: height * 0.4 + Math.random() * (height * 0.2), // Start at REQ mouth
-                    speedX: 2 + Math.random() * 3,
-                    speedY: (Math.random() - 0.5) * 2,
-                    colorIdx: Math.floor(Math.random() * 3), // 3 palette colors
-                    size: Math.floor(2 + Math.random() * 3), // 2, 3, or 4 (Sprite 캐싱을 위해 정수형 고정)
-                    state: 'REQ',
-                    targetX: reqWidth + 20 + Math.random() * (processingWidth - 40),
-                    waitTime: waitFrames
-                });
-            }
-        }
 
         // Update & Draw Particles
-        const currentTheme = useStore.getState().theme;
+        const currentTheme = storeState.theme;
         const isLight = currentTheme === 'light' || currentTheme === 'solarized-light';
         const particleColors = isLight
             ? ['#0ea5e9', '#0284c7', '#2563eb'] // Deeper sky/blue for light mode
@@ -187,9 +211,9 @@ const TransactionFlow: React.FC = () => {
         // 이미 Sprite 이미지에 섀도우가 베이크되어 있으므로, 하드웨어 가속이 적용되는 'source-over' 알파 블렌딩만 씁니다.
         ctx.globalCompositeOperation = 'source-over';
 
-        let reqCount = 0;
-        let processCount = 0;
-        let resCount = 0;
+        let innerReqCount = 0;
+        let innerProcessCount = 0;
+        let innerResCount = 0;
 
         for (let i = particlesRef.current.length - 1; i >= 0; i--) {
             const p = particlesRef.current[i];
@@ -269,25 +293,20 @@ const TransactionFlow: React.FC = () => {
             }
 
             // [마이크로 최적화] 어차피 스캔하는 파티클 렌더링 루프! 쓸데없이 2,000바퀴를 다시 도는 아래쪽 카운팅 루프를 지우고, 여기서 한 번에 같이 셉니다.
-            if (p.state === 'REQ') reqCount++;
-            else if (p.state === 'PROCESSING') processCount++;
-            else if (p.state === 'RES') resCount++;
+            if (p.state === 'REQ') innerReqCount++;
+            else if (p.state === 'PROCESSING') innerProcessCount++;
+            else if (p.state === 'RES') innerResCount++;
 
-            if (p.state !== 'PROCESSING') {
-                const pColor = particleColors[p.colorIdx];
-                // [크리티컬 버그 픽스] HMR(Fast Refresh) 이전에 생성된 파티클들의 크기가 소수점(float)을 가질 수 있어, 
-                // 매 프레임 무제한으로 캔버스를 생성해버리는 초강력 메모리 누수 방지용 강제 정수화
-                const safeSize = Math.floor(p.size);
-                // 문자열 연산을 안 쓰는 다차원 배열 인덱싱 호출
-                const sprite = getSprite(p.colorIdx, pColor, safeSize, isLight);
-                const offset = safeSize + (isLight ? 0 : 10);
-                
-                // 매 프레임 도형과 블러를 새로 그리는 대신, 이미 완성된 스프라이트를 스탬프처럼 찍음 (하드웨어 가속)
-                ctx.drawImage(sprite, p.x - offset, p.y - offset);
-            } else {
-                // 추가: PROCESSING 상태에서도 파티클 자체를 점/기호 등으로 작게나마 그릴 수 있습니다.
-                // 이전 구현에 맞추기 위해 파티클 표시는 안 하더라도 위치 정보는 남겨둘 수 있습니다. (현재 생략) 
-            }
+            // [크리티컬 버그 픽스] HMR(Fast Refresh) 이전에 생성된 파티클들의 크기가 소수점(float)을 가질 수 있어, 
+            // 매 프레임 무제한으로 캔버스를 생성해버리는 초강력 메모리 누수 방지용 강제 정수화
+            const pColor = particleColors[p.colorIdx];
+            const safeSize = Math.floor(p.size);
+            // 문자열 연산을 안 쓰는 다차원 배열 인덱싱 호출
+            const sprite = getSprite(p.colorIdx, pColor, safeSize, isLight);
+            const offset = safeSize + (isLight ? 0 : 10);
+            
+            // 매 프레임 도형과 블러를 새로 그리는 대신, 이미 완성된 스프라이트를 스탬프처럼 찍음 (하드웨어 가속)
+            ctx.drawImage(sprite, p.x - offset, p.y - offset);
 
             if (p.x > width) {
                 // [성능 극대화] .splice(i, 1)는 매번 O(N)으로 전체 배열 요소를 뒤로 미는 엄청난 메모리 부하(Stuttering)를 줍니다.
@@ -300,8 +319,6 @@ const TransactionFlow: React.FC = () => {
         ctx.globalCompositeOperation = 'source-over';
         ctx.shadowBlur = 0;
 
-        const activeServices = useStore.getState().activeServices;
-        const totalActive = activeServices.reduce((sum: any, s: any) => sum + s.activeCount, 0);
 
         const glowIntensity = Math.min(1.0, totalActive / 500);
         const pulse = (Math.sin(time / 300) + 1) / 2;
@@ -339,9 +356,9 @@ const TransactionFlow: React.FC = () => {
             ctx.shadowBlur = 0;
         };
 
-        drawBoxedNumber(reqWidth / 2, height / 2, reqCount.toString(), '#ff2a6d');
+        drawBoxedNumber(reqWidth / 2, height / 2, innerReqCount.toString(), '#ff2a6d');
         drawBoxedNumber(width / 2, height / 2, totalActive.toString(), accentColor);
-        drawBoxedNumber(width - resWidth / 2, height / 2, resCount.toString(), '#3273f6');
+        drawBoxedNumber(width - resWidth / 2, height / 2, innerResCount.toString(), '#3273f6');
 
         ctx.font = 'bold 12px Inter, sans-serif';
         ctx.fillStyle = textMuted;

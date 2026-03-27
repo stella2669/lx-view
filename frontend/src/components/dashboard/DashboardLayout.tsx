@@ -36,7 +36,11 @@ const PanelComponents: Record<PanelType, React.FC<any>> = {
 };
 
 const DashboardLayout: React.FC = () => {
-  const { panels, layouts, updateLayouts, isEditMode, removePanel } = useDashboardStore();
+  const { panels, layouts, updateLayouts, isEditMode, removePanel, fetchLayout } = useDashboardStore();
+
+  React.useEffect(() => {
+    fetchLayout();
+  }, [fetchLayout]);
 
   const handleLayoutChange = (_currentLayout: Layout[], allLayouts: Record<string, Layout[]>) => {
     updateLayouts(allLayouts);

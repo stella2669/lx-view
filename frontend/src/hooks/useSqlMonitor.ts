@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { StatAppSql, LogAppSlowQuery } from '../types/sql';
+import { apiFetch } from '../utils/api';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL 
-    ? `${import.meta.env.VITE_API_BASE_URL}/api/v1/monitor/sql`
-    : `http://${window.location.hostname}:8080/api/v1/monitor/sql`;
+const API_BASE = '/api/v1/monitor/sql';
 
 export const useSqlMonitor = (appId: number = 1, minutes: number = 30) => {
     const [stats, setStats] = useState<StatAppSql[]>([]);
@@ -13,8 +12,8 @@ export const useSqlMonitor = (appId: number = 1, minutes: number = 30) => {
     const fetchData = async () => {
         try {
             const [statsRes, slowRes] = await Promise.all([
-                fetch(`${API_BASE}/stats?appId=${appId}&minutes=${minutes}`),
-                fetch(`${API_BASE}/slow/recent?appId=${appId}&minutes=${minutes}`)
+                apiFetch(`${API_BASE}/stats?appId=${appId}&minutes=${minutes}`),
+                apiFetch(`${API_BASE}/slow/recent?appId=${appId}&minutes=${minutes}`)
             ]);
 
             if (statsRes.ok) setStats(await statsRes.json());

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { Layout } from 'react-grid-layout';
+import { useAuthStore } from './useAuthStore';
+import { apiFetch } from '../utils/api';
 
 export type PanelType =
   | 'TransactionFlow'
@@ -15,6 +17,14 @@ export type PanelType =
   | 'KpiTps'
   | 'KpiJvmThread';
 
+export interface TopStatsVisibility {
+  activeServices: boolean;
+  totalRequests: boolean;
+  totalErrors: boolean;
+  tps: boolean;
+  jvmThreads: boolean;
+}
+
 export interface DashboardPanel {
   id: string;
   type: PanelType;
@@ -24,10 +34,14 @@ interface DashboardState {
   panels: DashboardPanel[];
   layouts: Record<string, Layout[]>;
   isEditMode: boolean;
+  topStatsVisibility: TopStatsVisibility;
   addPanel: (type: PanelType) => void;
   removePanel: (id: string) => void;
   updateLayouts: (newLayouts: Record<string, Layout[]>) => void;
   toggleEditMode: () => void;
+  setTopStatsVisibility: (visibility: Partial<TopStatsVisibility>) => void;
+  fetchLayout: () => Promise<void>;
+  saveLayout: () => Promise<void>;
 }
 
 // 초기 기본 레이아웃 및 패널
@@ -63,10 +77,17 @@ const initialLayouts: Record<string, Layout[]> = {
   ]
 };
 
-export const useDashboardStore = create<DashboardState>((set) => ({
+export const useDashboardStore = create<DashboardState>((set, get) => ({
   panels: initialPanels,
   layouts: initialLayouts,
   isEditMode: false,
+  topStatsVisibility: {
+    activeServices: true,
+    totalRequests: true,
+    totalErrors: true,
+    tps: true,
+    jvmThreads: true,
+  },
 
   addPanel: (type) => {
     const id = `panel-${Date.now()}`;
@@ -134,6 +155,57 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   },
 
   toggleEditMode: () => {
-    set((state) => ({ isEditMode: !state.isEditMode }));
+    const nextEditMode = !get().isEditMode;
+    set({ isEditMode: nextEditMode });
+    
+    // 에디트 모드가 종료될 때 서버에 레이아웃 저장
+    if (!nextEditMode) {
+      get().saveLayout();
+    }
+  },
+
+  setTopStatsVisibility: (visibility) => {
+    set((state) => ({
+      topStatsVisibility: { ...state.topStatsVisibility, ...visibility }
+    }));
+  },
+
+  fetchLayout: async () => {
+    const { username } = useAuthStore.getState();
+    if (!username) return;
+
+    try {
+      const response = await apiFetch(`/api/layout/${username}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.panelsJson && data.layoutsJson) {
+          set({
+            panels: JSON.parse(data.panelsJson),
+            layouts: JSON.parse(data.layoutsJson)
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch layout:', e);
+    }
+  },
+
+  saveLayout: async () => {
+    const { panels, layouts } = get();
+    const { username } = useAuthStore.getState();
+    if (!username) return;
+
+    try {
+      await apiFetch('/api/layout', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: username,
+          panelsJson: JSON.stringify(panels),
+          layoutsJson: JSON.stringify(layouts),
+        }),
+      });
+    } catch (e) {
+      console.error('Failed to save layout:', e);
+    }
   }
 }));

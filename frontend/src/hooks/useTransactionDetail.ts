@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { apiFetch } from '../utils/api';
 
 /**
  * [REST API 지연 로딩(Lazy-Load) 추상화 훅]
@@ -16,7 +17,7 @@ export function useTransactionDetail() {
         setLoading(true);
         setDetailData(null); // Clear previous data before loading
         try {
-            const response = await fetch(`/api/transactions/${id}`);
+            const response = await apiFetch(`/api/transactions/${id}`);
             if (!response.ok) {
                 // The instruction provided a line that seems to be from a different file and was syntactically incorrect here.
                 // To maintain syntactic correctness and fulfill the instruction's intent as much as possible within this file,

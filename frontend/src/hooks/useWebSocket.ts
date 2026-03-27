@@ -1,21 +1,24 @@
 import { useEffect, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { apiFetch } from '../utils/api';
 import type { TransactionData, ActiveServiceData, TopStatsData, JvmMetricsData } from '../store/useStore';
 
 export const useWebSocket = () => {
-    // [성능 픽스] useStore()를 액션 단위로 분리 구독하여 상태 변경 시 App.tsx 전체가 리렌더되던 심각한 버그 수정
     const addTransactions = useStore((state) => state.addTransactions);
     const updateActiveServices = useStore((state) => state.updateActiveServices);
     const setTopStats = useStore((state) => state.setTopStats);
     const setJvmMetrics = useStore((state) => state.setJvmMetrics);
     
+    // JWT Token for WebSocket Auth
+    const token = useAuthStore((state) => state.token);
+    
     const clientRef = useRef<Client | null>(null);
 
     useEffect(() => {
-        // Recover 5-minute history from backend on initial mount/refresh
-        const httpBaseUrl = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8080`;
-        fetch(`${httpBaseUrl}/api/transactions/history`)
+        // Recover history using authenticated apiFetch
+        apiFetch(`/api/transactions/history`)
             .then(res => res.json())
             .then((data: TransactionData[]) => {
                 if (data && data.length > 0) {
@@ -32,6 +35,9 @@ export const useWebSocket = () => {
         const client = new Client({
             brokerURL: `${wsProtocol}//${wsHost}/ws-apm`,
             reconnectDelay: 5000,
+            connectHeaders: {
+                Authorization: token ? `Bearer ${token}` : '',
+            },
             onConnect: () => {
                 console.log('Connected to WebSocket!');
 

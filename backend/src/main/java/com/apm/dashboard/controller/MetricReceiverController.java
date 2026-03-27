@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,7 +28,17 @@ public class MetricReceiverController {
      * @return Agent 측에 HTTP 200 OK 를 지연 없이 반환 (Fast Return)
      */
     @PostMapping("/collect")
-    public ResponseEntity<Void> collectMetrics(@RequestBody List<Map<String, Object>> metrics) {
+    public ResponseEntity<Void> collectMetrics(
+            @RequestHeader(value = "X-LX-Agent-Key", required = false) String agentKey,
+            @RequestBody List<Map<String, Object>> metrics) {
+
+        // [Security] 에이전트 키 인증 (Dashboard 유저 JWT와는 별개의 '에이전트 전용' 인증)
+        // [Anti-Gravity] 실제 운영 환경에서는 application.yml 등의 설정에서 검증값 주입 권장
+        String validKey = "lx-view-agent-secret-key-2026"; 
+        if (agentKey == null || !agentKey.equals(validKey)) {
+            log.warn("Unauthorized agent access attempt with key: {}. Path: /api/v1/metrics/collect", agentKey);
+            return ResponseEntity.status(401).build(); // 401 Unauthorized
+        }
 
         // [Defensive] 페이로드 방어 로직 (null 혹은 빈 배열일 시 배제)
         if (metrics == null || metrics.isEmpty()) {
@@ -37,8 +48,7 @@ public class MetricReceiverController {
 
         log.info("Received {} metric items from agent. Data: {}", metrics.size(), metrics);
 
-        // [Scaling & Performance] DB I/O 등 무거운 작업은 백그라운드 Worker 스레드에 위임(Fire and
-        // Forget)
+        // [Scaling & Performance] DB I/O 등 무거운 작업은 백그라운드 Worker 스레드에 위임(Fire and Forget)
         // Controller는 즉시 응답만 떨어뜨려 에이전트단의 접속 지연(Timeout) 유발 방지
         metricSaveService.saveMetricsAsync(metrics);
 
