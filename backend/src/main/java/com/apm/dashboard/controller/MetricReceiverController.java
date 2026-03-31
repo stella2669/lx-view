@@ -13,6 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 외부 APM 에이전트(LxAgent)로부터 수신되는 모든 메트릭 데이터를 처리하는 컨트롤러입니다.
+ * 트랜잭션, JVM 지표, 에러 상세 정보 등을 수집하여 백엔드 서비스로 전달합니다.
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/metrics")
@@ -22,34 +26,34 @@ public class MetricReceiverController {
     private final MetricSaveService metricSaveService;
 
     /**
-     * LxAgent DataSender가 보내는 JSON 메트릭 배치 배열 데이터를 수신합니다.
+     * 에이전트가 배치(Batch)로 보내는 JSON 메트릭 데이터를 수신합니다.
+     * 보안을 위한 에이전트 키 검증을 수행하며, 수신된 데이터는 비동기로 처리하여 응답 속도를 최적화합니다.
      * 
-     * @param metrics 수집된 메트릭 배열 원시 데이터 (List of Map)
-     * @return Agent 측에 HTTP 200 OK 를 지연 없이 반환 (Fast Return)
+     * @param agentKey 헤더를 통해 전달되는 에이전트 인증 키
+     * @param metrics  수집된 메트릭 배열 (Transaction, JVM, SQL, Error 등)
+     * @return 수신 성공 시 200 OK
      */
     @PostMapping("/collect")
     public ResponseEntity<Void> collectMetrics(
             @RequestHeader(value = "X-LX-Agent-Key", required = false) String agentKey,
             @RequestBody List<Map<String, Object>> metrics) {
 
-        // [Security] 에이전트 키 인증 (Dashboard 유저 JWT와는 별개의 '에이전트 전용' 인증)
-        // [Anti-Gravity] 실제 운영 환경에서는 application.yml 등의 설정에서 검증값 주입 권장
-        String validKey = "lx-view-agent-secret-key-2026"; 
+        // [Security] 에이전트 전용 인증 키 검증
+        String validKey = "lx-view-agent-secret-key-2026";
         if (agentKey == null || !agentKey.equals(validKey)) {
             log.warn("Unauthorized agent access attempt with key: {}. Path: /api/v1/metrics/collect", agentKey);
-            return ResponseEntity.status(401).build(); // 401 Unauthorized
+            return ResponseEntity.status(401).build();
         }
 
-        // [Defensive] 페이로드 방어 로직 (null 혹은 빈 배열일 시 배제)
+        // [Defensive] 빈 페이로드 체크
         if (metrics == null || metrics.isEmpty()) {
             log.warn("Received empty metric payload from agent.");
             return ResponseEntity.badRequest().build();
         }
 
-        log.info("Received {} metric items from agent. Data: {}", metrics.size(), metrics);
+        log.debug("Received {} metric items from agent.", metrics.size());
 
-        // [Scaling & Performance] DB I/O 등 무거운 작업은 백그라운드 Worker 스레드에 위임(Fire and Forget)
-        // Controller는 즉시 응답만 떨어뜨려 에이전트단의 접속 지연(Timeout) 유발 방지
+        // 비동기 처리(Fire and Forget)를 통해 에이전트의 대기 시간을 최소화
         metricSaveService.saveMetricsAsync(metrics);
 
         return ResponseEntity.ok().build();

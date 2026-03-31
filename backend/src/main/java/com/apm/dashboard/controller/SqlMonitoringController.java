@@ -8,15 +8,23 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 대상 애플리케이션에서 실행된 SQL 쿼리의 성능 및 슬로우 쿼리를 모니터링하는 컨트롤러입니다.
+ */
 @RestController
 @RequestMapping("/api/v1/monitor/sql")
 @RequiredArgsConstructor
-
 public class SqlMonitoringController {
 
     private final SqlMonitoringService sqlMonitoringService;
 
-    // 1분 단위 누적/평균 SQL 통계 지표 조회 (라인/바 차트 용도)
+    /**
+     * 특정 기간 동안의 SQL 실행 통계(수행 횟수, 평균 시간 등)를 조회합니다.
+     * 주로 SQL Performance 라인/바 차트 렌더링에 사용됩니다.
+     * @param appId 대상 앱 ID
+     * @param minutes 조회 범위 (분 단위)
+     * @return SQL 통계 데이터 리스트
+     */
     @GetMapping("/stats")
     public List<StatAppSql> getSqlStats(
             @RequestParam(defaultValue = "1") Long appId,
@@ -24,7 +32,12 @@ public class SqlMonitoringController {
         return sqlMonitoringService.getSqlStats(appId, minutes);
     }
 
-    // 소요시간이 가장 오래 걸린 쿼리 Top 50 조회 (목록 용도)
+    /**
+     * 소요 시간이 긴 상위 50개의 SQL 쿼리 목록을 조회합니다.
+     * @param appId 대상 앱 ID
+     * @param minutes 조회 범위
+     * @return 슬로우 쿼리 내역
+     */
     @GetMapping("/slow/top")
     public List<LogAppSlowQuery> getTopSlowQueries(
             @RequestParam(defaultValue = "1") Long appId,
@@ -32,7 +45,12 @@ public class SqlMonitoringController {
         return sqlMonitoringService.getTopSlowQueries(appId, minutes);
     }
 
-    // 가장 최근에 발생한 슬로우/에러 쿼리 최근 50건 조회 (테이블 용도)
+    /**
+     * 가장 최근에 발생한 슬로우/에러 발생 SQL 쿼리를 조회합니다.
+     * @param appId 대상 앱 ID
+     * @param minutes 조회 범위
+     * @return 최신 슬로우 쿼리 리스트
+     */
     @GetMapping("/slow/recent")
     public List<LogAppSlowQuery> getRecentSlowQueries(
             @RequestParam(defaultValue = "1") Long appId,

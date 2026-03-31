@@ -10,25 +10,32 @@ export function useTransactionDetail() {
     const [selectedTxId, setSelectedTxId] = useState<string | null>(null); // 현재 클릭된 점의 ID
     const [detailData, setDetailData] = useState<any | null>(null);        // API 통신으로 가져온 상세 로그 정보 모음
     const [loading, setLoading] = useState(false);                         // 로딩 스피너 표시 여부
+    const [error, setError] = useState<string | null>(null);               // 에러 메시지
 
     // 외부에서 클릭했을 때 호출할 데이터 로드 함수
     const loadDetail = useCallback(async (id: string) => {
         setSelectedTxId(id);
         setLoading(true);
         setDetailData(null); // Clear previous data before loading
+        setError(null);      // Clear previous error
         try {
-            const response = await apiFetch(`/api/transactions/${id}`);
+            // 더 안전하고 확실하게 동작하도록 GET /api/transactions/detail?txId=... 방식을 사용.
+            // (PathVariable 이슈 및 POST 403 차단 문제 해결)
+            const response = await apiFetch(`/api/transactions/detail?txId=${encodeURIComponent(id)}`, {
+                method: 'GET'
+            });
             if (!response.ok) {
-                // The instruction provided a line that seems to be from a different file and was syntactically incorrect here.
-                // To maintain syntactic correctness and fulfill the instruction's intent as much as possible within this file,
-                // I'm assuming the user intended to keep the original error handling for the fetch response.
-                // The line `if (CoordinateMath.getDistance(px, py, x, y) < 10) {` and `new Error(...)`
                 throw new Error(`Failed to fetch transaction detail: ${response.status}`);
             }
             const data = await response.json();
+            if (!data) {
+                throw new Error('No data found for this ID');
+            }
+            // 응답받은 단일 객체를 바로 상태로 설정
             setDetailData(data);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to load transaction detail:', err);
+            setError(err.message || 'Unknown error occurred');
         } finally {
             setLoading(false);
         }
@@ -38,7 +45,8 @@ export function useTransactionDetail() {
     const closeDetail = useCallback(() => {
         setSelectedTxId(null);
         setDetailData(null);
+        setError(null);
     }, []);
 
-    return { selectedTxId, detailData, loading, loadDetail, closeDetail };
+    return { selectedTxId, detailData, loading, error, loadDetail, closeDetail };
 }

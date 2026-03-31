@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { useCanvasEngine } from '../../hooks/useCanvasEngine';
 import { CoordinateMath } from '../../core/math/CoordinateMath';
@@ -17,23 +17,48 @@ const BUCKET_SIZE_MS = 10000;
 const BUCKET_COUNT = TIME_WINDOW_MS / BUCKET_SIZE_MS;
 
 const XViewChart: React.FC = () => {
-    const { selectedTxId, loadDetail, closeDetail, detailData, loading } = useTransactionDetail();
+    const { selectedTxId, loadDetail, closeDetail, detailData, loading, error } = useTransactionDetail();
 
-    // 상태 요약: 드래그 박스, 선택된 트랜잭션들, 각 팝업 사이즈
+    // [버그 수정] 컨테이너 기반 좌표 제어를 위한 Ref
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // [기능 1, 2, 3] 팝업 이동 / 드래그 영역 해제 / ESC 상태 관리
     const [dragBox, setDragBox] = React.useState<{ 
         startTime: number; endTime: number; startRT: number; endRT: number; isDragging: boolean;
     } | null>(null);
+    const dragBoxRef = useRef<{ startTime: number; endTime: number; startRT: number; endRT: number; isDragging: boolean } | null>(null);
     const [selectedTransactions, setSelectedTransactions] = React.useState<any[]>([]);
     const [listSize, setListSize] = React.useState({ width: 320, height: 400 });
     const [detailSize, setDetailSize] = React.useState({ width: 450, height: 500 });
+
+    // [기능 1] 팝업 위치 state (기본값은 0, 0이지만 마운트 후 계산)
+    const [listPos, setListPos] = React.useState({ x: 0, y: 0 });
+    const [detailPos, setDetailPos] = React.useState({ x: 0, y: 0 });
+    const [posInited, setPosInited] = React.useState(false);
+
+    // 리사이즈 / 이동 작업 타입 구분
     const [resizingType, setResizingType] = React.useState<'list' | 'detail' | null>(null);
+    const [movingType, setMovingType] = React.useState<'list' | 'detail' | null>(null);
 
-    const stylesCacheRef = React.useRef<any>(null);
-    const lastThemeRef = React.useRef<string | null>(null);
-    const chartHeightRef = React.useRef<number>(5000);
-    const resizeStartRef = React.useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+    const stylesCacheRef = useRef<any>(null);
+    const lastThemeRef = useRef<string | null>(null);
+    const chartHeightRef = useRef<number>(5000);
+    const resizeStartRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+    const moveStartRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
 
-    // [성능 개선] Y축 최대값 계산 최적화: 매 프레임 호출되므로 Int32Array 기반 고속 연산 유지
+    // [버그 수정] 컨테이너 크기에 맞춰 초기 위치 계산 (상대 좌표)
+    useEffect(() => {
+        if (!posInited && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            // 리스트는 우측 정렬 느낌으로
+            setListPos({ x: rect.width - 340, y: 50 });
+            // 디테일은 중앙 정렬 느낌으로
+            setDetailPos({ x: Math.max(0, rect.width / 2 - 225), y: 50 });
+            setPosInited(true);
+        }
+    }, [posInited]);
+
+    // [성능 개선] Y축 최대값 계산 최적화
     const getYMax = useCallback((transactions: any[], now: number) => {
         if (transactions.length === 0) return MIN_Y_MAX_MS;
         const buckets = new Int32Array(BUCKET_COUNT);
@@ -50,7 +75,6 @@ const XViewChart: React.FC = () => {
         return Math.max(MIN_Y_MAX_MS, maxRT + 1000);
     }, []);
 
-    // [성능 개선] 리사이즈 핸들러는 useCallback으로 고정
     const onResizeStart = useCallback((type: 'list' | 'detail', e: React.MouseEvent) => {
         e.preventDefault();
         setResizingType(type);
@@ -60,7 +84,14 @@ const XViewChart: React.FC = () => {
         };
     }, [listSize, detailSize]);
 
-    React.useEffect(() => {
+    const onMoveStart = useCallback((type: 'list' | 'detail', e: React.MouseEvent) => {
+        e.preventDefault();
+        const currentPos = type === 'list' ? listPos : detailPos;
+        moveStartRef.current = { mx: e.clientX, my: e.clientY, px: currentPos.x, py: currentPos.y };
+        setMovingType(type);
+    }, [listPos, detailPos]);
+
+    useEffect(() => {
         if (!resizingType) return;
         const handleMouseMove = (e: MouseEvent) => {
             if (!resizeStartRef.current) return;
@@ -81,6 +112,42 @@ const XViewChart: React.FC = () => {
             window.removeEventListener('mouseup', handleMouseUp);
         };
     }, [resizingType]);
+
+    useEffect(() => {
+        if (!movingType) return;
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!moveStartRef.current) return;
+            const dx = e.clientX - moveStartRef.current.mx;
+            const dy = e.clientY - moveStartRef.current.my;
+            const newPos = {
+                x: moveStartRef.current.px + dx,
+                y: moveStartRef.current.py + dy,
+            };
+            if (movingType === 'list') setListPos(newPos);
+            else setDetailPos(newPos);
+        };
+        const handleMouseUp = () => { setMovingType(null); moveStartRef.current = null; };
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [movingType]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            if (selectedTxId) {
+                closeDetail();
+            } else if (selectedTransactions.length > 0) {
+                setSelectedTransactions([]);
+                setDragBox(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedTxId, selectedTransactions.length, closeDetail]);
 
     const getCachedStyles = useCallback(() => {
         const currentTheme = useStore.getState().theme;
@@ -141,7 +208,7 @@ const XViewChart: React.FC = () => {
         ctx.moveTo(35, 0); ctx.lineTo(35, chartHeight); ctx.lineTo(width, chartHeight);
         ctx.stroke();
 
-        // 2. Transactions (Batched Rendering)
+        // 2. Transactions
         let selectedTxObj: any = null;
         ctx.fillStyle = 'rgba(14, 165, 233, 0.7)'; ctx.beginPath();
         for (const tx of transactions) {
@@ -163,7 +230,6 @@ const XViewChart: React.FC = () => {
         }
         ctx.fill();
 
-        // 3. Effects & Dynamic Selection Box
         if (selectedTxObj) {
             const x = 35 + (selectedTxObj.timestamp - startTime) * widthRatio;
             const y = chartHeight - (Math.min(selectedTxObj.responseTimeMs, yMax) * heightRatio);
@@ -203,59 +269,84 @@ const XViewChart: React.FC = () => {
     }, [getYMax]);
 
     const onClick = useCallback((hit: any | null) => {
-        if (hit && hit.id) { loadDetail(hit.id); setSelectedTransactions([]); } 
-        else { closeDetail(); setSelectedTransactions([]); }
+        if (hit && hit.id) {
+            loadDetail(hit.id);
+            setSelectedTransactions([]);
+        } else {
+            closeDetail();
+            setSelectedTransactions([]);
+            setDragBox(null);
+        }
     }, [loadDetail, closeDetail]);
 
     const onDragStart = useCallback((x: number, y: number) => {
         closeDetail();
+        // 드래그 시작 시 기존 선택 목록을 즉시 리셋하여 불필요한 데이터가 노출되지 않도록 함
+        setSelectedTransactions([]);
+        
         const cw = (canvasRef.current?.width || 0) / (window.devicePixelRatio || 1) - 35;
         const ch = (canvasRef.current?.height || 0) / (window.devicePixelRatio || 1) - 20;
         const st = CoordinateMath.calculateTimestampFromX(x - 35, cw, Date.now(), TIME_WINDOW_MS);
         const sr = CoordinateMath.calculateRTFromY(y, ch, chartHeightRef.current);
-        setDragBox({ startTime: st, endTime: st, startRT: sr, endRT: sr, isDragging: true });
+        
+        const initBox = { startTime: st, endTime: st, startRT: sr, endRT: sr, isDragging: true };
+        dragBoxRef.current = initBox;
+        setDragBox(initBox);
     }, [closeDetail]);
 
     const onDrag = useCallback((_sx: number, _sy: number, cx: number, cy: number) => {
+        if (!dragBoxRef.current) return;
         const cw = (canvasRef.current?.width || 0) / (window.devicePixelRatio || 1) - 35;
         const ch = (canvasRef.current?.height || 0) / (window.devicePixelRatio || 1) - 20;
         const ct = CoordinateMath.calculateTimestampFromX(cx - 35, cw, Date.now(), TIME_WINDOW_MS);
         const cr = CoordinateMath.calculateRTFromY(cy, ch, chartHeightRef.current);
-        setDragBox(p => p ? { ...p, endTime: ct, endRT: cr } : null);
+        
+        const newBox = { ...dragBoxRef.current, endTime: ct, endRT: cr, isDragging: true };
+        dragBoxRef.current = newBox;
+        setDragBox(newBox);
     }, []);
 
     const onDragEnd = useCallback(() => {
-        setDragBox(p => {
-            if (!p) return null;
-            const txs = useStore.getState().transactions;
-            const tMin = Math.min(p.startTime, p.endTime), tMax = Math.max(p.startTime, p.endTime);
-            const rMin = Math.min(p.startRT, p.endRT), rMax = Math.max(p.startRT, p.endRT);
-            const sel = txs.filter(tx => tx.timestamp >= tMin && tx.timestamp <= tMax && tx.responseTimeMs >= rMin && tx.responseTimeMs <= rMax).slice(-50);
-            setSelectedTransactions(sel);
-            return { ...p, isDragging: false };
-        });
+        if (!dragBoxRef.current) return;
+        const p = dragBoxRef.current;
+        const txs = useStore.getState().transactions;
+        const tMin = Math.min(p.startTime, p.endTime), tMax = Math.max(p.startTime, p.endTime);
+        const rMin = Math.min(p.startRT, p.endRT), rMax = Math.max(p.startRT, p.endRT);
+        const sel = txs.filter(tx => tx.timestamp >= tMin && tx.timestamp <= tMax && tx.responseTimeMs >= rMin && tx.responseTimeMs <= rMax).slice(-50);
+        
+        // 새로 드래그한 결과(sel)로 완전히 덮어쓰기
+        setSelectedTransactions(sel);
+        
+        const finalBox = { ...p, isDragging: false };
+        dragBoxRef.current = finalBox;
+        setDragBox(finalBox);
     }, []);
 
     const { canvasRef } = useCanvasEngine({ motionBlur: false, onDraw, onHitTest, onClick, onDragStart, onDrag, onDragEnd });
 
     return (
         <BaseChartCard title="X-View (Live Scatter)" icon={ScatterChart} iconColor="text-indigo-400">
-            <canvas ref={canvasRef} className="w-full h-full block absolute top-0 left-0" />
+            {/* 컨테이너 좌표 기준을 잡기 위한 래퍼 */}
+            <div ref={containerRef} className="absolute inset-0 block w-full h-full overflow-hidden">
+                <canvas ref={canvasRef} className="w-full h-full block" />
 
-            {/* 분리된 상세 정보 팝업 컴포넌트 */}
-            {selectedTxId && (
-                <XViewTransactionDetail 
-                    detailData={detailData} loading={loading} size={detailSize} 
-                    onClose={closeDetail} onResizeStart={(e) => onResizeStart('detail', e)} 
+                {selectedTxId && (
+                    <XViewTransactionDetail 
+                        detailData={detailData} loading={loading} error={error} size={detailSize} pos={detailPos}
+                        onClose={closeDetail} 
+                        onResizeStart={(e) => onResizeStart('detail', e)}
+                        onMoveStart={(e) => onMoveStart('detail', e)}
+                    />
+                )}
+
+                <XViewSelectionList 
+                    transactions={selectedTransactions} size={listSize} pos={listPos}
+                    onClose={() => { setSelectedTransactions([]); setDragBox(null); }} 
+                    onSelectTransaction={loadDetail}
+                    onResizeStart={(e) => onResizeStart('list', e)}
+                    onMoveStart={(e) => onMoveStart('list', e)}
                 />
-            )}
-
-            {/* 분리된 선택 목록 팝업 컴포넌트 */}
-            <XViewSelectionList 
-                transactions={selectedTransactions} size={listSize} 
-                onClose={() => setSelectedTransactions([])} onSelectTransaction={loadDetail} 
-                onResizeStart={(e) => onResizeStart('list', e)} 
-            />
+            </div>
         </BaseChartCard>
     );
 };

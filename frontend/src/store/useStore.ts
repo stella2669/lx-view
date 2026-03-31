@@ -86,7 +86,36 @@ export const useStore = create<DashboardState>((set) => ({
         }
 
         const baseTxs = cutoff > 0 ? state.transactions.slice(cutoff) : state.transactions;
-        let updated = baseTxs.concat(newData);
+        const updatedTxs = [...baseTxs];
+        
+        // 프론트엔드 레벨 중복 제거 (웹소켓에서 동시에/연달아 전송되는 중복 txId 방어)
+        const MAX_LOOKBACK = 2000;
+        for (let i = 0; i < newData.length; i++) {
+            const tx = newData[i];
+            let foundIndex = -1;
+            
+            const searchLimit = Math.max(0, updatedTxs.length - MAX_LOOKBACK);
+            for (let j = updatedTxs.length - 1; j >= searchLimit; j--) {
+                if (updatedTxs[j].id === tx.id) {
+                    foundIndex = j;
+                    break;
+                }
+            }
+
+            if (foundIndex !== -1) {
+                const existing = updatedTxs[foundIndex];
+                // 더 긴 수행시간 보장 및 isError 플래그 OR 병합
+                if (tx.responseTimeMs > existing.responseTimeMs) {
+                    updatedTxs[foundIndex] = { ...tx, isError: existing.isError || tx.isError };
+                } else if (!existing.isError && tx.isError) {
+                    updatedTxs[foundIndex] = { ...existing, isError: true };
+                }
+            } else {
+                updatedTxs.push(tx);
+            }
+        }
+
+        let updated = updatedTxs;
 
         // 하드 캡(Hard Cap): 메모리 방어 및 캔버스 렌더링 한계 보장 (최대 20,000개)
         const MAX_ITEMS = 20000;
