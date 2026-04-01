@@ -2,8 +2,10 @@ package com.apm.dashboard.service;
 
 import com.apm.dashboard.model.JvmMetricsData;
 import com.apm.dashboard.model.TransactionData;
+import com.apm.dashboard.model.entity.AppIncidentLog;
+import com.apm.dashboard.model.entity.IncidentType;
+import com.apm.dashboard.repository.AppIncidentLogRepository;
 import com.apm.dashboard.repository.AppInfoRepository;
-import com.apm.dashboard.repository.LogAppErrorRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -28,8 +30,8 @@ public class MetricSaveService {
     private final TransactionService transactionService;
     private final TransactionDetailService transactionDetailService;
     private final SqlMonitoringService sqlMonitoringService;
-    private final SqlErrorLoggingService sqlErrorLoggingService;
-    private final LogAppErrorRepository logAppErrorRepository;
+    private final MetricAggregatorService metricAggregatorService;
+    private final AppIncidentLogRepository appIncidentLogRepository;
     private final AppInfoRepository appInfoRepository;
 
     /**
@@ -61,10 +63,18 @@ public class MetricSaveService {
                 // 타입별 처리기 분기
                 if ("TRANSACTION".equalsIgnoreCase(type)) {
                     TransactionData txData = parseTransactionData(metric);
-                    if (txData != null) transactions.add(txData);
+                    if (txData != null) {
+                        transactions.add(txData);
+                        // 1분 집계 버퍼에 누적 (정상/에러 트랜잭션 모두 통계에 포함)
+                        metricAggregatorService.bufferTx(agentName, txData);
+                    }
                 } else if ("JVM".equalsIgnoreCase(type)) {
                     JvmMetricsData jvmData = parseJvmMetricsData(metric);
-                    if (jvmData != null) jvmMetrics.add(jvmData);
+                    if (jvmData != null) {
+                        jvmMetrics.add(jvmData);
+                        // 최신 스냅샷 버퍼 갱신 (1분마다 DB 저장됨)
+                        metricAggregatorService.bufferJvm(agentName, jvmData);
+                    }
                 } else if ("ERROR_DETAIL".equalsIgnoreCase(type)) {
                     // 상세 정보 저장 및 DB 에러 로그 적재
                     transactionDetailService.saveDetail(metric);
@@ -134,7 +144,7 @@ public class MetricSaveService {
         }
     }
 
-    /** SQL 성능 메트릭 판별 후 정상/에러 로깅 서비스로 전달 */
+    /** SQL 성능 메트릭 판별 후 타입에 따라 AppIncidentLog에 저장 + StatAppSql 집계 버퍼 누적 */
     private void processSqlMetric(String agentName, Map<String, Object> metric) {
         try {
             String sql = (String) metric.get("sql");
@@ -142,39 +152,46 @@ public class MetricSaveService {
             boolean isError = getBooleanValue(metric, "isError", false);
             String txId = (String) metric.getOrDefault("txId", "UNKNOWN");
 
+            // 1. AppIncidentLog 저장 (에러는 SQL_ERROR, 슬로우쿼리는 SLOW_QUERY)
             if (isError) {
-                sqlErrorLoggingService.saveErrorLogSafely(agentName, sql, duration, txId);
-            } else {
+                sqlMonitoringService.saveSqlErrorSafely(agentName, sql, duration, txId);
+            } else if (duration > 1000) {
+                // 슬로우쿼리는 임계치(1초) 초과 시에만 개별 로그 저장
                 sqlMonitoringService.saveSlowQueryLogSafely(agentName, sql, duration, txId);
             }
+
+            // 2. StatAppSql 집계용 버퍼 누적 (모든 SQL, 에러/정상 무관)
+            metricAggregatorService.bufferSql(agentName, duration, isError);
+
         } catch (Exception e) {
             log.warn("Failed to process SQL metric: {}", e.getMessage());
         }
     }
 
-    /** 수신된 애플리케이션 예외 내역(ERROR_DETAIL)을 DB에 영구 적재 */
+    /** 수신된 애플리케이션 예외 내역(ERROR_DETAIL)을 AppIncidentLog(APP_ERROR 타입)에 영구 적재 */
     private void saveAppErrorToDb(String agentName, Map<String, Object> metric) {
         try {
             Long appId = appInfoRepository.findByAppKey(agentName)
                     .map(com.apm.dashboard.model.entity.AppInfo::getId)
                     .orElse(1L);
 
-            com.apm.dashboard.model.entity.LogAppError errorEntity = com.apm.dashboard.model.entity.LogAppError
-                    .builder()
+            AppIncidentLog incidentLog = AppIncidentLog.builder()
                     .appId(appId)
+                    .incidentType(IncidentType.APP_ERROR)
                     .occurredAt(java.time.LocalDateTime.now())
                     .exceptionName((String) metric.get("exceptionName"))
-                    .errorMessage((String) metric.get("errorMessage"))
+                    .message((String) metric.get("errorMessage"))
                     .stackTrace((String) metric.get("stackTrace"))
                     .requestUrl((String) metric.get("requestUrl"))
                     .httpMethod((String) metric.get("httpMethod"))
                     .clientIp((String) metric.get("clientIp"))
                     .requestParams((String) metric.get("requestParams"))
+                    .requestBody((String) metric.get("requestBody"))
                     .threadName((String) metric.get("threadName"))
                     .build();
 
-            logAppErrorRepository.save(errorEntity);
-            log.debug("Saved App Error to DB for agent: {}", agentName);
+            appIncidentLogRepository.save(incidentLog);
+            log.debug("Saved APP_ERROR incident to DB for agent: {}", agentName);
         } catch (Exception e) {
             log.error("Failed to save App Error to DB", e);
         }
