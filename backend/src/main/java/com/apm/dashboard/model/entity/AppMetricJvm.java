@@ -8,14 +8,14 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "apm_metric_app_jvm", indexes = {
+@Table(name = "apm_app_metric_jvm", indexes = {
         @Index(name = "idx_app_metric_composite", columnList = "appId, recordedAt")
 })
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MetricAppJvm {
+public class AppMetricJvm {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

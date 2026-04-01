@@ -144,7 +144,7 @@ public class MetricSaveService {
         }
     }
 
-    /** SQL 성능 메트릭 판별 후 타입에 따라 AppIncidentLog에 저장 + StatAppSql 집계 버퍼 누적 */
+    /** SQL 성능 메트릭 판별 후 타입에 따라 AppIncidentLog에 저장 + AppStatSql 집계 버퍼 누적 */
     private void processSqlMetric(String agentName, Map<String, Object> metric) {
         try {
             String sql = (String) metric.get("sql");
@@ -160,7 +160,7 @@ public class MetricSaveService {
                 sqlMonitoringService.saveSlowQueryLogSafely(agentName, sql, duration, txId);
             }
 
-            // 2. StatAppSql 집계용 버퍼 누적 (모든 SQL, 에러/정상 무관)
+            // 2. AppStatSql 집계용 버퍼 누적 (모든 SQL, 에러/정상 무관)
             metricAggregatorService.bufferSql(agentName, duration, isError);
 
         } catch (Exception e) {

@@ -1,6 +1,6 @@
 package com.apm.dashboard.repository;
 
-import com.apm.dashboard.model.entity.StatAppRequest;
+import com.apm.dashboard.model.entity.AppStatRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,12 +12,12 @@ import java.util.List;
  * 1분 단위로 집계된 요청 건수/TPS/응답 분포 데이터를 조회합니다.
  */
 @Repository
-public interface StatAppRequestRepository extends JpaRepository<StatAppRequest, Long> {
+public interface AppStatRequestRepository extends JpaRepository<AppStatRequest, Long> {
 
     /** 특정 앱의 요청 통계를 시간순으로 조회합니다. (TPS 차트용) */
-    List<StatAppRequest> findByAppIdAndBaseTimeBetweenOrderByBaseTimeAsc(
+    List<AppStatRequest> findByAppIdAndBaseTimeBetweenOrderByBaseTimeAsc(
             Long appId, LocalDateTime start, LocalDateTime end);
 
     /** 특정 앱의 가장 최근 통계 1건 조회 */
-    StatAppRequest findFirstByAppIdOrderByBaseTimeDesc(Long appId);
+    AppStatRequest findFirstByAppIdOrderByBaseTimeDesc(Long appId);
 }

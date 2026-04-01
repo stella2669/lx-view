@@ -3,13 +3,13 @@ package com.apm.dashboard.service;
 import com.apm.dashboard.model.JvmMetricsData;
 import com.apm.dashboard.model.TransactionData;
 import com.apm.dashboard.model.entity.AppInfo;
-import com.apm.dashboard.model.entity.MetricAppJvm;
-import com.apm.dashboard.model.entity.StatAppRequest;
-import com.apm.dashboard.model.entity.StatAppSql;
+import com.apm.dashboard.model.entity.AppMetricJvm;
+import com.apm.dashboard.model.entity.AppStatRequest;
+import com.apm.dashboard.model.entity.AppStatSql;
 import com.apm.dashboard.repository.AppInfoRepository;
-import com.apm.dashboard.repository.MetricAppJvmRepository;
-import com.apm.dashboard.repository.StatAppRequestRepository;
-import com.apm.dashboard.repository.StatAppSqlRepository;
+import com.apm.dashboard.repository.AppMetricJvmRepository;
+import com.apm.dashboard.repository.AppStatRequestRepository;
+import com.apm.dashboard.repository.AppStatSqlRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -41,9 +41,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class MetricAggregatorService {
 
     private final AppInfoRepository appInfoRepository;
-    private final MetricAppJvmRepository metricAppJvmRepository;
-    private final StatAppSqlRepository statAppSqlRepository;
-    private final StatAppRequestRepository statAppRequestRepository;
+    private final AppMetricJvmRepository appMetricJvmRepository;
+    private final AppStatSqlRepository appStatSqlRepository;
+    private final AppStatRequestRepository appStatRequestRepository;
 
     /** JVM 최신 스냅샷 버퍼 (key: agentName) */
     private final ConcurrentHashMap<String, JvmMetricsData> jvmSnapshots = new ConcurrentHashMap<>();
@@ -109,7 +109,7 @@ public class MetricAggregatorService {
         jvmSnapshots.forEach((agentName, jvm) -> {
             try {
                 Long appId = resolveAppId(agentName);
-                MetricAppJvm entity = MetricAppJvm.builder()
+                AppMetricJvm entity = AppMetricJvm.builder()
                         .appId(appId)
                         .recordedAt(now)
                         .processCpuLoad(jvm.getProcessCpuLoad())
@@ -121,7 +121,7 @@ public class MetricAggregatorService {
                         .liveThreadCount(jvm.getLiveThreads())
                         .deadlockDetected(jvm.getDeadlockedThreads() > 0)
                         .build();
-                metricAppJvmRepository.save(entity);
+                appMetricJvmRepository.save(entity);
                 log.debug("[Aggregator] JVM snapshot saved. agent={}", agentName);
             } catch (Exception e) {
                 log.error("[Aggregator] JVM flush failed. agent={}", agentName, e);
@@ -142,14 +142,14 @@ public class MetricAggregatorService {
             if (buffer.totalCount.get() == 0) return;
             try {
                 Long appId = resolveAppId(agentName);
-                StatAppSql entity = StatAppSql.builder()
+                AppStatSql entity = AppStatSql.builder()
                         .appId(appId)
                         .baseTime(now)
                         .totalExecutionCount(buffer.totalCount.get())
                         .slowQueryCount(buffer.slowCount.get())
                         .totalExecutionTimeMs(buffer.totalTimeMs.get())
                         .build();
-                statAppSqlRepository.save(entity);
+                appStatSqlRepository.save(entity);
                 log.debug("[Aggregator] SQL stats saved. agent={}, total={}건, slow={}건",
                         agentName, buffer.totalCount.get(), buffer.slowCount.get());
             } catch (Exception e) {
@@ -171,7 +171,7 @@ public class MetricAggregatorService {
             try {
                 Long appId = resolveAppId(agentName);
                 long total = buffer.totalRequests.get();
-                StatAppRequest entity = StatAppRequest.builder()
+                AppStatRequest entity = AppStatRequest.builder()
                         .appId(appId)
                         .baseTime(now)
                         .totalRequests(total)
@@ -186,7 +186,7 @@ public class MetricAggregatorService {
                         .status4xx(buffer.status4xx.get())
                         .status5xx(buffer.status5xx.get())
                         .build();
-                statAppRequestRepository.save(entity);
+                appStatRequestRepository.save(entity);
                 log.debug("[Aggregator] TX stats saved. agent={}, total={}건, error={}건",
                         agentName, total, buffer.errorCount.get());
             } catch (Exception e) {

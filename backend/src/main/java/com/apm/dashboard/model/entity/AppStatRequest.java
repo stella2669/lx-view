@@ -8,14 +8,14 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "apm_stat_app_sql", indexes = {
-        @Index(name = "idx_stat_app_sql_composite", columnList = "appId, baseTime")
+@Table(name = "apm_app_stat_request", indexes = {
+        @Index(name = "idx_app_stat_req_composite", columnList = "appId, baseTime")
 })
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class StatAppSql {
+public class AppStatRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,7 +26,17 @@ public class StatAppSql {
     @Column(nullable = false)
     private LocalDateTime baseTime;
 
-    private Long totalExecutionCount; // 해당 주기의 총 쿼리 실행 횟수
-    private Long slowQueryCount; // 기준치(예: 1초)를 넘긴 슬로우 쿼리 횟수
-    private Long totalExecutionTimeMs; // 해당 주기의 모든 쿼리 소요 시간 합계
+    private Long totalRequests;
+    private Long errorCount;
+    private Double avgTps;
+
+    private Long countUnder1s;
+    private Long countUnder3s;
+    private Long countUnder5s;
+    private Long countOver5s;
+
+    private Long status2xx;
+    private Long status3xx;
+    private Long status4xx;
+    private Long status5xx;
 }
