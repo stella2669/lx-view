@@ -11,7 +11,7 @@ spring:
     driver-class-name: org.mariadb.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update # 애플리케이션 실행 시 Entity 기반으로 스키마 자동 업데이트
+      ddl-auto: none # 애플리케이션 실행 시 스키마 자동 변경 방지 (수동 관리)
     show-sql: false
     properties:
       hibernate:

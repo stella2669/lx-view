@@ -20,7 +20,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "apm_app_incident_log", indexes = {
         @Index(name = "idx_incident_app_time",  columnList = "appId, occurredAt"),
-        @Index(name = "idx_incident_type_time", columnList = "incidentType, occurredAt")
+        @Index(name = "idx_incident_type_time", columnList = "incidentType, occurredAt"),
+        @Index(name = "idx_incident_tx_id",     columnList = "txId")  // APP_ERROR 트래이싱용
 })
 @Getter
 @Builder
@@ -48,6 +49,13 @@ public class AppIncidentLog {
     // ────────────────────────────────────────────────────────────
     // 공통 필드
     // ────────────────────────────────────────────────────────────
+
+    /**
+     * 트랜잭션 ID. 에이전트가 전달한 txId로, 에러 시점의 트랜잭션을 X-View 등에서 정확히 추적할 수 있도록 합니다.
+     * APP_ERROR 타입의 중복 저장 방지 키로도 활용됩니다.
+     */
+    @Column(length = 64)
+    private String txId;
 
     /** 에러 메시지 또는 시스템 알림 메시지 */
     @Column(columnDefinition = "TEXT")

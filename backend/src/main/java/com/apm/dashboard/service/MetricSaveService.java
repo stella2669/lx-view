@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 에이전트로부터 수신된 다양한 메트릭 데이터를 통합적으로 분류하고 저장하는 핵심 서비스입니다.
@@ -33,6 +34,13 @@ public class MetricSaveService {
     private final MetricAggregatorService metricAggregatorService;
     private final AppIncidentLogRepository appIncidentLogRepository;
     private final AppInfoRepository appInfoRepository;
+
+    /**
+     * APP_ERROR 중복 저장 방지 버퍼 (Key: agentName + "_" + txId)
+     * 동일 txId의 에러는 30초 이내 재수신 시 저장을 건너뜁니다.
+     */
+    private final ConcurrentHashMap<String, Long> errorDeduplicationBuffer = new ConcurrentHashMap<>();
+    private static final long ERROR_DEDUP_WINDOW_MS = 30_000L;
 
     /**
      * 에이전트로부터 수신한 메트릭 배치 데이터를 비동기적으로 처리합니다.
@@ -168,9 +176,27 @@ public class MetricSaveService {
         }
     }
 
-    /** 수신된 애플리케이션 예외 내역(ERROR_DETAIL)을 AppIncidentLog(APP_ERROR 타입)에 영구 적재 */
+    /**
+     * 수신된 애플리케이션 예외 내역(ERROR_DETAIL)을 AppIncidentLog(APP_ERROR 타입)에 영구 적재합니다.
+     * txId 기반 중복 방지(30초 윈도우)를 적용하여 동일 에러의 중복 저장을 차단합니다.
+     */
     private void saveAppErrorToDb(String agentName, Map<String, Object> metric) {
         try {
+            // txId가 없는 경우 exceptionName+requestUrl 해시로 대체 키 생성
+            String txId = metric.containsKey("txId")
+                    ? metric.get("txId").toString()
+                    : String.valueOf((String.valueOf(metric.get("exceptionName")) + metric.get("requestUrl")).hashCode());
+
+            String dedupKey = agentName + "_" + txId;
+            long now = System.currentTimeMillis();
+            Long lastSaved = errorDeduplicationBuffer.get(dedupKey);
+
+            if (lastSaved != null && (now - lastSaved) < ERROR_DEDUP_WINDOW_MS) {
+                log.debug("[APP_ERROR] 중복 suppressed. agent={}, txId={}", agentName, txId);
+                return;
+            }
+            errorDeduplicationBuffer.put(dedupKey, now);
+
             Long appId = appInfoRepository.findByAppKey(agentName)
                     .map(com.apm.dashboard.model.entity.AppInfo::getId)
                     .orElse(1L);
@@ -179,6 +205,7 @@ public class MetricSaveService {
                     .appId(appId)
                     .incidentType(IncidentType.APP_ERROR)
                     .occurredAt(java.time.LocalDateTime.now())
+                    .txId(txId)  // 트랜잭션 추적용 — 중복 방지 키와 동일 값 사용
                     .exceptionName((String) metric.get("exceptionName"))
                     .message((String) metric.get("errorMessage"))
                     .stackTrace((String) metric.get("stackTrace"))
@@ -191,9 +218,9 @@ public class MetricSaveService {
                     .build();
 
             appIncidentLogRepository.save(incidentLog);
-            log.debug("Saved APP_ERROR incident to DB for agent: {}", agentName);
+            log.debug("[APP_ERROR] Saved incident. agent={}, txId={}", agentName, txId);
         } catch (Exception e) {
-            log.error("Failed to save App Error to DB", e);
+            log.error("[APP_ERROR] Failed to save incident to DB", e);
         }
     }
 

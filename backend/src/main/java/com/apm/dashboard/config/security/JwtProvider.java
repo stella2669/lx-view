@@ -3,6 +3,7 @@ package com.apm.dashboard.config.security;
 import java.security.Key;
 import java.util.Date;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
@@ -12,14 +13,30 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * JWT 토큰 생성 및 검증을 담당합니다.
+ *
+ * <pre>
+ * 보안 정책:
+ * - Access Token  : 15분 (탈취 시 피해 최소화)
+ * - Refresh Token : 7일 (HttpOnly Cookie + DB Rotation으로 관리)
+ * - 서명 키       : application.yml에서 주입 (하드코딩 금지)
+ * </pre>
+ */
 @Slf4j
 @Component
 public class JwtProvider {
 
-    // [Anti-Gravity] 실제 운영 환경에서는 application.yml 등의 설정에서 주입받아야 함.
-    private String secret = "antigravity-dashboard-jwt-secret-key-for-lx-view-2026";
-    private long accessTokenValidity = 3600000; // 1시간
-    private long refreshTokenValidity = 3600000 * 24 * 7; // 7일
+    @Value("${jwt.secret:antigravity-dashboard-jwt-secret-key-for-lx-view-2026}")
+    private String secret;
+
+    /** Access Token 유효 시간: 15분 (보안 강화 — 기존 1시간에서 단축) */
+    @Value("${jwt.access-token-validity:900000}")
+    private long accessTokenValidity;
+
+    /** Refresh Token 유효 시간: 7일 */
+    @Value("${jwt.refresh-token-validity:604800000}")
+    private long refreshTokenValidity;
 
     private Key key;
 
@@ -34,6 +51,11 @@ public class JwtProvider {
 
     public String createRefreshToken(String username) {
         return createToken(username, null, refreshTokenValidity);
+    }
+
+    /** Refresh Token 유효 시간(밀리초)을 반환합니다. Cookie maxAge 설정에 사용. */
+    public long getRefreshTokenValidityMs() {
+        return refreshTokenValidity;
     }
 
     private String createToken(String username, String role, long validityInMilliseconds) {
