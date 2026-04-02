@@ -3,7 +3,6 @@ package com.apm.dashboard.service;
 import com.apm.dashboard.model.entity.AppIncidentLog;
 import com.apm.dashboard.model.entity.IncidentType;
 import com.apm.dashboard.repository.AppIncidentLogRepository;
-import com.apm.dashboard.repository.AppInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -12,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,8 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class SqlMonitoringService {
 
-    private final AppInfoRepository appInfoRepository;
+    private final AppIdResolver appIdResolver;
     private final AppIncidentLogRepository appIncidentLogRepository;
+    private final com.apm.dashboard.repository.AppStatSqlRepository appStatSqlRepository;
 
     /** 중복된 SQL 로깅 방지를 위한 버퍼 (Key: appKey + sqlHash) */
     private final ConcurrentHashMap<String, Long> deduplicationBuffer = new ConcurrentHashMap<>();
@@ -61,6 +60,16 @@ public class SqlMonitoringService {
                         appId, IncidentType.SLOW_QUERY, start, end);
     }
 
+    /**
+     * 특정 앱의 일정 기간 동안의 SQL 성능 통계(AppStatSql)를 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public List<com.apm.dashboard.model.entity.AppStatSql> getSqlStats(Long appId, int minutesParam) {
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(minutesParam);
+        return appStatSqlRepository.findByAppIdAndBaseTimeBetweenOrderByBaseTimeAsc(appId, start, end);
+    }
+
     // ────────────────────────────────────────────────────────────────
     // 적재 메서드 (비동기, 중복 방지)
     // ────────────────────────────────────────────────────────────────
@@ -74,7 +83,7 @@ public class SqlMonitoringService {
         if (!passDeduplicate(appKey, sql)) return;
 
         try {
-            Long mappedAppId = resolveAppId(appKey);
+            Long mappedAppId = appIdResolver.resolveAppId(appKey);
 
             AppIncidentLog incident = AppIncidentLog.builder()
                     .appId(mappedAppId)
@@ -103,7 +112,7 @@ public class SqlMonitoringService {
         if (!passDeduplicate(appKey, sql)) return;
 
         try {
-            Long mappedAppId = resolveAppId(appKey);
+            Long mappedAppId = appIdResolver.resolveAppId(appKey);
 
             AppIncidentLog incident = AppIncidentLog.builder()
                     .appId(mappedAppId)
@@ -141,10 +150,18 @@ public class SqlMonitoringService {
         return true;
     }
 
-    /** agentName(appKey)을 AppId로 변환. 매핑 실패 시 기본값 1L 반환. */
-    private Long resolveAppId(String appKey) {
-        Optional<com.apm.dashboard.model.entity.AppInfo> appInfoOpt =
-                appInfoRepository.findByAppKey(appKey);
-        return appInfoOpt.map(com.apm.dashboard.model.entity.AppInfo::getId).orElse(1L);
+    /**
+     * OOM 방지: 1분마다 실행되어 만료된 (10초 지난) Deduplication 버퍼 항목을 정리합니다.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 60000)
+    public void cleanupDeduplicationBuffer() {
+        long now = System.currentTimeMillis();
+        int initialSize = deduplicationBuffer.size();
+        deduplicationBuffer.entrySet().removeIf(entry -> (now - entry.getValue()) > DEDUPLICATION_WINDOW_MS);
+        int finalSize = deduplicationBuffer.size();
+        
+        if (initialSize != finalSize && log.isDebugEnabled()) {
+            log.debug("Cleaned up {} expired items from SQL deduplicationBuffer", (initialSize - finalSize));
+        }
     }
 }

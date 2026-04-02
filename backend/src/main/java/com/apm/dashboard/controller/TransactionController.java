@@ -13,21 +13,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import lombok.RequiredArgsConstructor;
+
 /**
  * 실시간 트랜잭션 데이터 및 상세 상세 이력을 제공하는 컨트롤러입니다.
  * X-View 차트 데이터와 개별 트랜잭션의 상세 스택 트레이스 정보를 조회합니다.
  */
 @RestController
 @RequestMapping("/api/transactions")
+@RequiredArgsConstructor
 public class TransactionController {
 
     private final TransactionService transactionService;
     private final TransactionDetailService transactionDetailService;
-
-    public TransactionController(TransactionService transactionService, TransactionDetailService transactionDetailService) {
-        this.transactionService = transactionService;
-        this.transactionDetailService = transactionDetailService;
-    }
 
     /**
      * 최근 수집된 실시간 트랜잭션 목록을 조회합니다.
@@ -46,24 +44,7 @@ public class TransactionController {
      */
     @GetMapping("/{txId}")
     public ResponseEntity<TransactionDetailDto> getTransactionDetail(@PathVariable("txId") String txId) {
-        // 1. 트랜잭션 기본 정보 조회
-        return transactionService.findById(txId)
-                .map(tx -> {
-                    // 2. 상세 정보(Error/Stacktrace 등) 조회
-                    TransactionDetailDto detail = transactionDetailService.getDetail(txId)
-                            .orElse(new TransactionDetailDto());
-
-                    // 기본 정보와 상세 정보를 병합하여 반환
-                    detail.setTxId(tx.getId());
-                    detail.setServiceName(tx.getServiceName());
-                    detail.setTimestamp(tx.getTimestamp());
-                    detail.setResponseTimeMs(tx.getResponseTimeMs());
-                    detail.setHttpStatusCode(tx.getHttpStatusCode());
-                    detail.setError(tx.isError());
-
-                    return ResponseEntity.ok(detail);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        return buildDetailResponse(txId);
     }
 
     /**
@@ -73,6 +54,10 @@ public class TransactionController {
      */
     @GetMapping("/detail")
     public ResponseEntity<TransactionDetailDto> getTransactionDetailByParam(@RequestParam("txId") String txId) {
+        return buildDetailResponse(txId);
+    }
+
+    private ResponseEntity<TransactionDetailDto> buildDetailResponse(String txId) {
         return transactionService.findById(txId)
                 .map(tx -> {
                     TransactionDetailDto detail = transactionDetailService.getDetail(txId)

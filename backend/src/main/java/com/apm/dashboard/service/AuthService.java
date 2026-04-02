@@ -8,6 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.apm.dashboard.config.security.JwtProvider;
+import com.apm.dashboard.exception.AuthenticationException;
+import com.apm.dashboard.exception.BusinessException;
+import com.apm.dashboard.exception.TokenExpiredException;
+import com.apm.dashboard.exception.TokenReuseDetectedException;
 import com.apm.dashboard.model.dto.AuthDto;
 import com.apm.dashboard.model.entity.RefreshToken;
 import com.apm.dashboard.model.entity.User;
@@ -43,7 +47,7 @@ public class AuthService {
     @Transactional
     public void signup(AuthDto.SignupRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("Username already exists: " + request.getUsername());
+            throw new BusinessException("Username already exists", org.springframework.http.HttpStatus.CONFLICT, "USER_EXISTS");
         }
 
         User user = User.builder()
@@ -62,10 +66,10 @@ public class AuthService {
     @Transactional
     public AuthDto.AuthResponse login(AuthDto.LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("Invalid username or password"));
+                .orElseThrow(() -> new AuthenticationException("Invalid username or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid username or password");
+            throw new AuthenticationException("Invalid username or password");
         }
 
         // 로그인 시 기존 활성 토큰을 모두 폐기하고 새로 발급 (단일 세션 정책)
@@ -89,22 +93,22 @@ public class AuthService {
     @Transactional
     public AuthDto.AuthResponse refreshToken(String requestToken) {
         RefreshToken storedToken = refreshTokenRepository.findByToken(requestToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found in database"));
+                .orElseThrow(() -> new AuthenticationException("Refresh token not found in database"));
 
         // ── Reuse Detection: 이미 폐기된 토큰이 재사용됨 → 세션 하이재킹 의심 ──
         if (storedToken.isRevoked()) {
-            log.warn("[SECURITY] 🚨 Reuse Detection! 폐기된 Refresh Token 재사용 감지. user={}, tokenId={}",
+            log.warn("[SECURITY] \uD83D\uDEA8 Reuse Detection! 폐기된 Refresh Token 재사용 감지. user={}, tokenId={}",
                     storedToken.getUser().getUsername(), storedToken.getId());
             // 해당 유저의 모든 활성 토큰을 강제 폐기
             refreshTokenRepository.revokeAllActiveByUser(storedToken.getUser());
-            throw new RuntimeException("Refresh token reuse detected! All sessions revoked for security.");
+            throw new TokenReuseDetectedException("Refresh token reuse detected! All sessions revoked for security.");
         }
 
         // ── 만료 확인 ──
         if (storedToken.getExpiryDate().isBefore(Instant.now())) {
             storedToken.setRevoked(true);
             refreshTokenRepository.save(storedToken);
-            throw new RuntimeException("Refresh token expired. Please sign in again.");
+            throw new TokenExpiredException("Refresh token expired. Please sign in again.");
         }
 
         // ── Rotation: 기존 토큰 폐기 → 새 토큰 발급 ──

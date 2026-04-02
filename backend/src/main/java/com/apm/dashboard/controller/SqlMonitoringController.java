@@ -41,4 +41,16 @@ public class SqlMonitoringController {
             @RequestParam(defaultValue = "60") int minutes) {
         return sqlMonitoringService.getRecentSlowQueries(appId, minutes);
     }
+
+    /**
+     * 일정 기간 동안의 SQL 성능 통계(AppStatSql)를 조회합니다.
+     * @param appId   대상 앱 ID
+     * @param minutes 조회 범위 (분 단위)
+     */
+    @GetMapping("/stats")
+    public List<com.apm.dashboard.model.entity.AppStatSql> getSqlStats(
+            @RequestParam(defaultValue = "1") Long appId,
+            @RequestParam(defaultValue = "60") int minutes) {
+        return sqlMonitoringService.getSqlStats(appId, minutes);
+    }
 }

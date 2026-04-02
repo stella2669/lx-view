@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class JwtProvider {
 
-    @Value("${jwt.secret:antigravity-dashboard-jwt-secret-key-for-lx-view-2026}")
+    @Value("${jwt.secret}")
     private String secret;
 
     /** Access Token 유효 시간: 15분 (보안 강화 — 기존 1시간에서 단축) */

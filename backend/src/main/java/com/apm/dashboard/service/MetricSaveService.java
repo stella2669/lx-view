@@ -33,7 +33,7 @@ public class MetricSaveService {
     private final SqlMonitoringService sqlMonitoringService;
     private final MetricAggregatorService metricAggregatorService;
     private final AppIncidentLogRepository appIncidentLogRepository;
-    private final AppInfoRepository appInfoRepository;
+    private final AppIdResolver appIdResolver;
 
     /**
      * APP_ERROR 중복 저장 방지 버퍼 (Key: agentName + "_" + txId)
@@ -197,9 +197,7 @@ public class MetricSaveService {
             }
             errorDeduplicationBuffer.put(dedupKey, now);
 
-            Long appId = appInfoRepository.findByAppKey(agentName)
-                    .map(com.apm.dashboard.model.entity.AppInfo::getId)
-                    .orElse(1L);
+            Long appId = appIdResolver.resolveAppId(agentName);
 
             AppIncidentLog incidentLog = AppIncidentLog.builder()
                     .appId(appId)
@@ -251,5 +249,20 @@ public class MetricSaveService {
         if (val instanceof Boolean) return (Boolean) val;
         if (val instanceof String) return Boolean.parseBoolean((String) val);
         return defaultValue;
+    }
+
+    /**
+     * OOM 방지: 1분마다 실행되어 만료된 (30초 지난) Deduplication 버퍼 항목을 정리합니다.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 60000)
+    public void cleanupDeduplicationBuffer() {
+        long now = System.currentTimeMillis();
+        int initialSize = errorDeduplicationBuffer.size();
+        errorDeduplicationBuffer.entrySet().removeIf(entry -> (now - entry.getValue()) > ERROR_DEDUP_WINDOW_MS);
+        int finalSize = errorDeduplicationBuffer.size();
+        
+        if (initialSize != finalSize && log.isDebugEnabled()) {
+            log.debug("Cleaned up {} expired items from errorDeduplicationBuffer", (initialSize - finalSize));
+        }
     }
 }

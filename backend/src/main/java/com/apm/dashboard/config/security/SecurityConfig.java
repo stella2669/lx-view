@@ -1,7 +1,9 @@
 package com.apm.dashboard.config.security;
 
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,6 +25,10 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    /** CORS 허용 오리진 — application.yml에서 주입 (쉼표 구분) */
+    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    private String allowedOrigins;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -53,9 +59,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Collections.singletonList("*"));
-        configuration.setAllowedMethods(Collections.singletonList("*"));
-        configuration.setAllowedHeaders(Collections.singletonList("*"));
+        // application.yml의 쉼표 구분 오리진 목록을 파싱하여 등록
+        List<String> origins = Arrays.asList(allowedOrigins.split(","));
+        configuration.setAllowedOriginPatterns(origins);
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -63,3 +71,4 @@ public class SecurityConfig {
         return source;
     }
 }
+

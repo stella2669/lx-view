@@ -28,7 +28,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToSignup }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setAuth(data.accessToken, data.refreshToken, data.username, data.role);
+        setAuth(data.accessToken, data.username, data.role);
       } else {
         const msg = await response.text();
         setError(msg || 'Invalid credentials');

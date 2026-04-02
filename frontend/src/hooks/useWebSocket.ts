@@ -17,6 +17,11 @@ export const useWebSocket = () => {
     const clientRef = useRef<Client | null>(null);
 
     useEffect(() => {
+        if (!token) {
+            console.warn('WebSocket connection aborted: No token available');
+            return;
+        }
+
         // Recover history using authenticated apiFetch
         apiFetch(`/api/transactions/history`)
             .then(res => res.json())
@@ -36,7 +41,7 @@ export const useWebSocket = () => {
             brokerURL: `${wsProtocol}//${wsHost}/ws-apm`,
             reconnectDelay: 5000,
             connectHeaders: {
-                Authorization: token ? `Bearer ${token}` : '',
+                Authorization: `Bearer ${token}`,
             },
             onConnect: () => {
                 console.log('Connected to WebSocket!');
@@ -87,5 +92,5 @@ export const useWebSocket = () => {
                 clientRef.current.deactivate();
             }
         };
-    }, [addTransactions, updateActiveServices, setTopStats]);
+    }, [token, addTransactions, updateActiveServices, setTopStats, setJvmMetrics]);
 };

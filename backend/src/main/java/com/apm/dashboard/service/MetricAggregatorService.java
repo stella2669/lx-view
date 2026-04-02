@@ -2,11 +2,9 @@ package com.apm.dashboard.service;
 
 import com.apm.dashboard.model.JvmMetricsData;
 import com.apm.dashboard.model.TransactionData;
-import com.apm.dashboard.model.entity.AppInfo;
 import com.apm.dashboard.model.entity.AppMetricJvm;
 import com.apm.dashboard.model.entity.AppStatRequest;
 import com.apm.dashboard.model.entity.AppStatSql;
-import com.apm.dashboard.repository.AppInfoRepository;
 import com.apm.dashboard.repository.AppMetricJvmRepository;
 import com.apm.dashboard.repository.AppStatRequestRepository;
 import com.apm.dashboard.repository.AppStatSqlRepository;
@@ -40,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @RequiredArgsConstructor
 public class MetricAggregatorService {
 
-    private final AppInfoRepository appInfoRepository;
+    private final AppIdResolver appIdResolver;
     private final AppMetricJvmRepository appMetricJvmRepository;
     private final AppStatSqlRepository appStatSqlRepository;
     private final AppStatRequestRepository appStatRequestRepository;
@@ -108,7 +106,7 @@ public class MetricAggregatorService {
     private void flushJvm(LocalDateTime now) {
         jvmSnapshots.forEach((agentName, jvm) -> {
             try {
-                Long appId = resolveAppId(agentName);
+                Long appId = appIdResolver.resolveAppId(agentName);
                 AppMetricJvm entity = AppMetricJvm.builder()
                         .appId(appId)
                         .recordedAt(now)
@@ -141,7 +139,7 @@ public class MetricAggregatorService {
         snapshot.forEach((agentName, buffer) -> {
             if (buffer.totalCount.get() == 0) return;
             try {
-                Long appId = resolveAppId(agentName);
+                Long appId = appIdResolver.resolveAppId(agentName);
                 AppStatSql entity = AppStatSql.builder()
                         .appId(appId)
                         .baseTime(now)
@@ -169,7 +167,7 @@ public class MetricAggregatorService {
         snapshot.forEach((agentName, buffer) -> {
             if (buffer.totalRequests.get() == 0) return;
             try {
-                Long appId = resolveAppId(agentName);
+                Long appId = appIdResolver.resolveAppId(agentName);
                 long total = buffer.totalRequests.get();
                 AppStatRequest entity = AppStatRequest.builder()
                         .appId(appId)
@@ -193,13 +191,6 @@ public class MetricAggregatorService {
                 log.error("[Aggregator] TX flush failed. agent={}", agentName, e);
             }
         });
-    }
-
-    /** agentName(appKey)을 AppId로 변환. 미등록 에이전트는 기본값 1L 사용. */
-    private Long resolveAppId(String agentName) {
-        return appInfoRepository.findByAppKey(agentName)
-                .map(AppInfo::getId)
-                .orElse(1L);
     }
 
     // ────────────────────────────────────────────────────────────────
