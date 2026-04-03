@@ -6,11 +6,13 @@ import DashboardLayout from './components/dashboard/DashboardLayout';
 import { LoginPage } from './components/auth/LoginPage';
 import { SignupPage } from './components/auth/SignupPage';
 import { useAuthStore } from './store/useAuthStore';
-import { LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, User as UserIcon, Settings } from 'lucide-react';
+import AppManagementModal from './components/admin/AppManagementModal';
 
 const App: React.FC = () => {
   const { isAuthenticated, username, logout } = useAuthStore();
   const [activePage, setActivePage] = useState<'login' | 'signup'>('login');
+  const [isAppModalOpen, setIsAppModalOpen] = useState(false);
 
   // Start WebSocket Hook
   useWebSocket();
@@ -48,6 +50,14 @@ const App: React.FC = () => {
               <ThemeSelector />
               <LayoutDropdown />
               <button 
+                onClick={() => setIsAppModalOpen(true)}
+                className="flex items-center gap-2 bg-panel-header hover:bg-hover text-text-main px-3 py-1.5 rounded-lg border border-border-main transition-all text-xs font-bold"
+                title="Management Apps"
+              >
+                <Settings size={14} className="text-text-accent" />
+                <span className="hidden sm:inline">Apps</span>
+              </button>
+              <button 
                 onClick={logout}
                 className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 px-3 py-1.5 rounded-lg border border-red-500/20 transition-all text-xs font-bold"
                 title="Logout"
@@ -65,6 +75,11 @@ const App: React.FC = () => {
           <DashboardLayout />
         </div>
       </main>
+
+      <AppManagementModal 
+        isOpen={isAppModalOpen} 
+        onClose={() => setIsAppModalOpen(false)} 
+      />
     </div>
   );
 };

@@ -198,6 +198,9 @@ public class MetricSaveService {
             errorDeduplicationBuffer.put(dedupKey, now);
 
             Long appId = appIdResolver.resolveAppId(agentName);
+            if (appId == null) {
+                return;
+            }
 
             AppIncidentLog incidentLog = AppIncidentLog.builder()
                     .appId(appId)

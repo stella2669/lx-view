@@ -25,4 +25,8 @@ public class AppInfo {
     private String appName; // 대시보드 표시용 이름
     private String appType; // 예: "SPRING_BOOT"
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isActive = true; // 사용 여부 (N일 경우 메트릭 ड्रॉप)
 }

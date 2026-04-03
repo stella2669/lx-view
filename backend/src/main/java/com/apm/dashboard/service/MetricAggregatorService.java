@@ -107,6 +107,7 @@ public class MetricAggregatorService {
         jvmSnapshots.forEach((agentName, jvm) -> {
             try {
                 Long appId = appIdResolver.resolveAppId(agentName);
+                if (appId == null) return;
                 AppMetricJvm entity = AppMetricJvm.builder()
                         .appId(appId)
                         .recordedAt(now)
@@ -140,6 +141,7 @@ public class MetricAggregatorService {
             if (buffer.totalCount.get() == 0) return;
             try {
                 Long appId = appIdResolver.resolveAppId(agentName);
+                if (appId == null) return;
                 AppStatSql entity = AppStatSql.builder()
                         .appId(appId)
                         .baseTime(now)
@@ -168,6 +170,7 @@ public class MetricAggregatorService {
             if (buffer.totalRequests.get() == 0) return;
             try {
                 Long appId = appIdResolver.resolveAppId(agentName);
+                if (appId == null) return;
                 long total = buffer.totalRequests.get();
                 AppStatRequest entity = AppStatRequest.builder()
                         .appId(appId)

@@ -84,6 +84,7 @@ public class SqlMonitoringService {
 
         try {
             Long mappedAppId = appIdResolver.resolveAppId(appKey);
+            if (mappedAppId == null) return;
 
             AppIncidentLog incident = AppIncidentLog.builder()
                     .appId(mappedAppId)
@@ -113,6 +114,7 @@ public class SqlMonitoringService {
 
         try {
             Long mappedAppId = appIdResolver.resolveAppId(appKey);
+            if (mappedAppId == null) return;
 
             AppIncidentLog incident = AppIncidentLog.builder()
                     .appId(mappedAppId)

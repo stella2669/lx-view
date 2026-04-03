@@ -27,14 +27,15 @@ public class AppIdResolver {
     // @Cacheable(value = "appIds", key = "#appKey") // Redis나 로컬 캐시 도입 시 활성화 고려
     public Long resolveAppId(String appKey) {
         if (appKey == null || appKey.trim().isEmpty()) {
-            return 1L;
+            return null;
         }
-        
+
         return appInfoRepository.findByAppKey(appKey)
+                .filter(appInfo -> Boolean.TRUE.equals(appInfo.getIsActive()))
                 .map(appInfo -> appInfo.getId())
                 .orElseGet(() -> {
-                    log.warn("Unregistered appKey received: [{}]. Fallback to default appId=1L", appKey);
-                    return 1L;
+                    log.debug("Unregistered or inactive appKey received: [{}]. Dropping metrics (returning null).", appKey);
+                    return null;
                 });
     }
 }
