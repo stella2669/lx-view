@@ -5,6 +5,11 @@ SpringBoot 기반의 백엔드와 React + TypeScript + Vite 기반의 프론트�
 
 ---
 
+## 📚 가이드 및 문서
+- **[시스템 관리자 및 개발자 매뉴얼 (manual.md)](docs/manual.md)**: DB 설정(DDL/DML), 애플리케이션 및 위젯 관리, 위젯 확장 가이드를 포함합니다.
+
+---
+
 ## 🚀 기술 스택
 
 ### Frontend

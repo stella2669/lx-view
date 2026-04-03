@@ -3,29 +3,21 @@ import { Settings, Check } from 'lucide-react';
 import { useDashboardStore } from '../../store/useDashboardStore';
 import type { PanelType } from '../../store/useDashboardStore';
 
-const availableWidgets: { type: PanelType; label: string; description: string }[] = [
-  { type: 'TransactionFlow', label: 'Transaction Flow', description: '트랜잭션 흐름도' },
-  { type: 'ResponseStats', label: 'Response Stats', description: '응답 시간 통계' },
-  { type: 'XViewChart', label: 'X-View', description: '실시간 트랜잭션 분포' },
-  { type: 'ActiveServiceChart', label: 'Active Services', description: '활성 서비스 현황' },
-  { type: 'JvmMetrics', label: 'JVM Metrics', description: 'CPU, Memory, GC 통계' },
-  { type: 'SqlMonitorPanel', label: 'SQL Monitor', description: 'DB SQL 통계 및 에러' },
-  { type: 'UnifiedErrorList', label: 'System Errors', description: '실시간 시스템 에러' },
-  { type: 'KpiActiveService', label: 'KPI: Active Services', description: '활성 서비스 수치 카드' },
-  { type: 'KpiTotalRequest', label: 'KPI: Total Requests', description: '총 요청 수치 카드' },
-  { type: 'KpiTotalError', label: 'KPI: Total Errors', description: '에러 수치 카드' },
-  { type: 'KpiTps', label: 'KPI: TPS', description: '초당 트랜잭션 수치 카드' },
-  { type: 'KpiJvmThread', label: 'KPI: JVM Threads', description: 'JVM 쓰레드 수치 카드' },
-];
-
 export const LayoutDropdown: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     
     const { 
         panels, addPanel, removePanel,
-        isEditMode, toggleEditMode
+        isEditMode, toggleEditMode,
+        availableWidgets, fetchAvailableWidgets
     } = useDashboardStore();
+
+    useEffect(() => {
+        if (isEditMode) {
+            fetchAvailableWidgets();
+        }
+    }, [isEditMode, fetchAvailableWidgets]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -37,7 +29,7 @@ export const LayoutDropdown: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handlePanelToggle = (type: PanelType) => {
+    const handlePanelToggle = (type: string) => {
         const existingPanel = panels.find((p) => p.type === type);
         if (existingPanel) {
             removePanel(existingPanel.id);
@@ -68,12 +60,12 @@ export const LayoutDropdown: React.FC = () => {
                             
                             <div className="flex flex-col gap-1 overflow-y-auto max-h-[400px] custom-scrollbar">
                                 {availableWidgets.map(widget => {
-                                    const isAdded = panels.some(p => p.type === widget.type);
+                                    const isAdded = panels.some(p => p.type === widget.widgetType);
                                     return (
                                         <button
-                                            key={widget.type}
-                                            onClick={() => handlePanelToggle(widget.type)}
-                                            className="flex items-center justify-between px-2 py-1.5 text-sm hover:bg-indigo-500/10 rounded-md transition-colors text-left"
+                                            key={widget.widgetType}
+                                            onClick={() => handlePanelToggle(widget.widgetType)}
+                                            className="flex items-center justify-between px-2 py-1.5 text-sm hover:bg-indigo-500/10 rounded-md transition-colors text-left font-semibold"
                                             title={widget.description}
                                         >
                                             <span className="truncate pr-2">{widget.label}</span>

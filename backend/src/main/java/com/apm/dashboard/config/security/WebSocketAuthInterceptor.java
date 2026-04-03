@@ -32,37 +32,40 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-            // 1. STOMP CONNECT 헤더에서 Authorization 추출
+            // 1. STOMP CONNECT 헤더에서 Authorization 추출 (대소문자 모두 체크)
             String authHeader = accessor.getFirstNativeHeader("Authorization");
-            String token = null;
-
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                token = authHeader.substring(7);
+            if (authHeader == null) {
+                authHeader = accessor.getFirstNativeHeader("authorization");
             }
 
-            // 2. 헤더에 토큰이 없다면 웹소켓 연결에는 주로 Authorization 헤더 전달 제약이 있으므로,
-            // 쿼리 파라미터나 다른 방식으로 전달받을 수도 있는지 체크할 수 있습니다.
-            // 여기서는 헤더 기반 인증으로 처리합니다.
-            if (token == null) {
-                // 특정 시나리오에서는 브라우저의 WebSocket API가 헤더를 포함할 수 없어 
-                // token 쿼리파라미터나 첫 메시지 payload로 보내기도 합니다. (프론트엔드 조정 필요)
-                log.warn("WebSocket CONNECT rejected: Missing Authorization header");
+            String token = null;
+
+            if (authHeader != null && authHeader.trim().startsWith("Bearer ")) {
+                token = authHeader.trim().substring(7);
+            }
+
+            if (token == null || token.isBlank()) {
+                log.warn("WebSocket CONNECT rejected: Missing or empty Authorization header");
                 throw new AccessDeniedException("Missing Authentication Token in STOMP Header");
             }
 
             try {
                 if (!jwtProvider.validateToken(token)) {
-                    log.warn("WebSocket CONNECT rejected: Invalid Token");
+                    // JwtProvider에서 로그가 이미 남지만, 인터셉터 레벨에서도 사유 추적을 위해 한번 더 기록할 수 있습니다.
+                    log.warn("WebSocket CONNECT rejected: Invalid or Expired Token (starts with: {})", 
+                        token.length() > 10 ? token.substring(0, 10) + "..." : "short-token");
                     throw new AccessDeniedException("Invalid Authentication Token");
                 }
                 
-                // (선택 사항) accessor.setUser(...) 로 인증된 사용자 정보를 컨텍스트에 설정할 수 있습니다.
                 log.debug("WebSocket CONNECT token verified successfully.");
                 
+            } catch (AccessDeniedException e) {
+                // 인증 실패는 정상적인 거부 상황이므로 WARN 레벨로 사유만 기록 (스택트레이스 제외)
+                log.warn("WebSocket CONNECT denied: {}", e.getMessage());
+                throw e; 
             } catch (Exception e) {
-                log.error("WebSocket CONNECT error during token validation", e);
-                // Spring Security가 런타임 예외를 가로채지 못할 경우를 대비
-                throw new AccessDeniedException("Authentication failed");
+                log.error("Unexpected error during WebSocket token validation", e);
+                throw new AccessDeniedException("Authentication failed due to internal error");
             }
         }
         return message;

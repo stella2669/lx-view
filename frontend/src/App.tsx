@@ -7,12 +7,12 @@ import { LoginPage } from './components/auth/LoginPage';
 import { SignupPage } from './components/auth/SignupPage';
 import { useAuthStore } from './store/useAuthStore';
 import { LogOut, User as UserIcon, Settings } from 'lucide-react';
-import AppManagementModal from './components/admin/AppManagementModal';
+import SettingsModal from './components/admin/SettingsModal';
 
 const App: React.FC = () => {
   const { isAuthenticated, username, logout } = useAuthStore();
   const [activePage, setActivePage] = useState<'login' | 'signup'>('login');
-  const [isAppModalOpen, setIsAppModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Start WebSocket Hook
   useWebSocket();
@@ -40,22 +40,21 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-3">
+          {/* First Row: Status, Apps, Logout */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-[10px] text-muted uppercase tracking-widest font-bold">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]"></span>
               Live
             </div>
             <div className="flex items-center gap-2">
-              <ThemeSelector />
-              <LayoutDropdown />
               <button 
-                onClick={() => setIsAppModalOpen(true)}
+                onClick={() => setIsSettingsOpen(true)}
                 className="flex items-center gap-2 bg-panel-header hover:bg-hover text-text-main px-3 py-1.5 rounded-lg border border-border-main transition-all text-xs font-bold"
-                title="Management Apps"
+                title="System Settings"
               >
                 <Settings size={14} className="text-text-accent" />
-                <span className="hidden sm:inline">Apps</span>
+                <span className="hidden sm:inline">Settings</span>
               </button>
               <button 
                 onClick={logout}
@@ -67,6 +66,12 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Second Row: Theme & Layout */}
+          <div className="flex items-center gap-2">
+            <ThemeSelector />
+            <LayoutDropdown />
+          </div>
         </div>
       </header>
 
@@ -76,9 +81,9 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <AppManagementModal 
-        isOpen={isAppModalOpen} 
-        onClose={() => setIsAppModalOpen(false)} 
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
       />
     </div>
   );

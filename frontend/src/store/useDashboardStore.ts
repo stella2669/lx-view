@@ -3,19 +3,17 @@ import type { Layout } from 'react-grid-layout';
 import { useAuthStore } from './useAuthStore';
 import { apiFetch } from '../utils/api';
 
-export type PanelType =
-  | 'TransactionFlow'
-  | 'ResponseStats'
-  | 'XViewChart'
-  | 'ActiveServiceChart'
-  | 'JvmMetrics'
-  | 'SqlMonitorPanel'
-  | 'UnifiedErrorList'
-  | 'KpiActiveService'
-  | 'KpiTotalRequest'
-  | 'KpiTotalError'
-  | 'KpiTps'
-  | 'KpiJvmThread';
+export type PanelType = string;
+
+export interface WidgetInfo {
+  id: number;
+  widgetType: string;
+  label: string;
+  description: string;
+  isActive: boolean;
+  minW: number;
+  minH: number;
+}
 
 export interface TopStatsVisibility {
   activeServices: boolean;
@@ -32,6 +30,7 @@ export interface DashboardPanel {
 
 interface DashboardState {
   panels: DashboardPanel[];
+  availableWidgets: WidgetInfo[];
   layouts: Record<string, Layout[]>;
   isEditMode: boolean;
   topStatsVisibility: TopStatsVisibility;
@@ -42,6 +41,7 @@ interface DashboardState {
   setTopStatsVisibility: (visibility: Partial<TopStatsVisibility>) => void;
   fetchLayout: () => Promise<void>;
   saveLayout: () => Promise<void>;
+  fetchAvailableWidgets: () => Promise<void>;
 }
 
 // 초기 기본 레이아웃 및 패널
@@ -79,6 +79,7 @@ const initialLayouts: Record<string, Layout[]> = {
 
 export const useDashboardStore = create<DashboardState>((set, get) => ({
   panels: initialPanels,
+  availableWidgets: [],
   layouts: initialLayouts,
   isEditMode: false,
   topStatsVisibility: {
@@ -93,15 +94,19 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const id = `panel-${Date.now()}`;
     const newPanel: DashboardPanel = { id, type };
 
+    const widgetMeta = get().availableWidgets.find(w => w.widgetType === type);
+    const minW = widgetMeta?.minW || 4;
+    const minH = widgetMeta?.minH || 4;
+
     // 새 패널 위치 지정 (기본적으로 최하단이나 적당한 위치)
     const newLayoutItem: Layout = {
       i: id,
       x: 0, // 첫번째 열
       y: Infinity, // 빈 공간 중 제일 아래로
-      w: type.startsWith('Kpi') ? 4 : 8,
-      h: type.startsWith('Kpi') ? 2 : 8,
-      minW: 2,
-      minH: 2,
+      w: minW,
+      h: minH,
+      minW: minW,
+      minH: minH,
     };
 
     set((state) => ({
@@ -206,6 +211,18 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       });
     } catch (e) {
       console.error('Failed to save layout:', e);
+    }
+  },
+
+  fetchAvailableWidgets: async () => {
+    try {
+      const response = await apiFetch('/api/widgets?activeOnly=true');
+      if (response.ok) {
+        const data = await response.json();
+        set({ availableWidgets: data });
+      }
+    } catch (e) {
+      console.error('Failed to fetch available widgets:', e);
     }
   }
 }));
