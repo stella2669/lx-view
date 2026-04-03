@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AppInfo } from '../../types/app';
 import { apiFetch } from '../../utils/api';
 import BaseModal from '../shared/BaseModal';
-import { Plus, Save, RotateCcw, AlertTriangle, ShieldCheck, ShieldX, Settings } from 'lucide-react';
+import { Plus, Save, RotateCcw, AlertTriangle, ShieldCheck, ShieldX, Settings, Search, X } from 'lucide-react';
 
 interface AppManagementModalProps {
   isOpen: boolean;
@@ -12,6 +12,9 @@ interface AppManagementModalProps {
 const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose }) => {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
   const [newApp, setNewApp] = useState<Partial<AppInfo>>({
     appKey: '',
     appName: '',
@@ -21,10 +24,11 @@ const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<AppInfo>>({});
 
-  const fetchApps = async () => {
+  const fetchApps = useCallback(async (query: string = '') => {
     setIsLoading(true);
     try {
-      const resp = await apiFetch('/api/apps');
+      const url = query ? `/api/apps?query=${encodeURIComponent(query)}` : '/api/apps';
+      const resp = await apiFetch(url);
       if (resp.ok) {
         const data = await resp.json();
         setApps(data);
@@ -34,13 +38,13 @@ const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
-      fetchApps();
+      fetchApps(searchQuery);
     }
-  }, [isOpen]);
+  }, [isOpen, fetchApps, searchQuery]);
 
   const handleCreate = async () => {
     if (!newApp.appKey || !newApp.appName) return;
@@ -51,7 +55,8 @@ const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose
       });
       if (resp.ok) {
         setNewApp({ appKey: '', appName: '', appType: 'SPRING_BOOT', isActive: true });
-        fetchApps();
+        setIsRegistering(false);
+        fetchApps(searchQuery);
       } else {
         const err = await resp.json();
         alert(err.message || 'Failed to create app');
@@ -68,7 +73,7 @@ const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose
         body: JSON.stringify({ ...app, isActive: !app.isActive })
       });
       if (resp.ok) {
-        fetchApps();
+        fetchApps(searchQuery);
       }
     } catch (e) {
       console.error('Toggle error', e);
@@ -83,62 +88,103 @@ const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose
       });
       if (resp.ok) {
         setEditingId(null);
-        fetchApps();
+        fetchApps(searchQuery);
       }
     } catch (e) {
       console.error('Update error', e);
     }
   };
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} title="App Management" defaultWidth={950}>
       <div className="space-y-6">
-        {/* Register New App */}
-        <section className="p-4 rounded-xl border border-border-main/50 bg-panel-header/20">
-          <h3 className="text-sm font-bold text-text-accent mb-4 flex items-center gap-2">
-            <Plus size={16} /> Register New Service
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="space-y-1.5">
-              <label className="text-xs text-text-muted font-semibold">App Key (Unique)</label>
-              <input
-                type="text"
-                placeholder="e.g. PAYMENT-SERVICE"
-                className="w-full bg-base border border-border-main rounded-lg px-3 py-2 text-sm focus:border-text-accent outline-none text-text-main"
-                value={newApp.appKey}
-                onChange={e => setNewApp({ ...newApp, appKey: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-text-muted font-semibold">App Name (Display)</label>
-              <input
-                type="text"
-                placeholder="e.g. 결제 연동 서비스"
-                className="w-full bg-base border border-border-main rounded-lg px-3 py-2 text-sm focus:border-text-accent outline-none text-text-main"
-                value={newApp.appName}
-                onChange={e => setNewApp({ ...newApp, appName: e.target.value })}
-              />
-            </div>
-             <div className="space-y-1.5">
-              <label className="text-xs text-text-muted font-semibold">Type</label>
-              <select
-                className="w-full bg-base border border-border-main rounded-lg px-3 py-2 text-sm focus:border-text-accent outline-none text-text-main"
-                value={newApp.appType}
-                onChange={e => setNewApp({ ...newApp, appType: e.target.value })}
+        {/* Header Actions: Search & Add Button */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-panel-header/10 p-2 rounded-xl">
+          <div className="relative w-full sm:w-80 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted group-focus-within:text-text-accent transition-colors" />
+            <input
+              type="text"
+              placeholder="Search by Key or Name..."
+              className="w-full bg-base border border-border-main rounded-lg pl-10 pr-4 py-2 text-sm focus:border-text-accent outline-none text-text-main transition-all"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onKeyDown={(e) => e.key === 'Enter' && fetchApps(searchQuery)}
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => { setSearchQuery(''); fetchApps(''); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main"
               >
-                <option value="SPRING_BOOT">Spring Boot</option>
-                <option value="NODEJS">Node.js</option>
-                <option value="PYTHON">Python</option>
-              </select>
-            </div>
-            <button
-              onClick={handleCreate}
-              className="bg-text-accent hover:bg-text-accent/80 text-white font-bold py-2 px-4 rounded-lg text-sm transition-all shadow-lg shadow-text-accent/20"
-            >
-              Add App
-            </button>
+                <X size={14} />
+              </button>
+            )}
           </div>
-        </section>
+
+          <button
+            onClick={() => setIsRegistering(!isRegistering)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all border ${
+              isRegistering 
+                ? 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20' 
+                : 'bg-text-accent/10 border-text-accent/30 text-text-accent hover:bg-text-accent/20'
+            }`}
+          >
+            {isRegistering ? <X size={16} /> : <Plus size={16} />}
+            {isRegistering ? 'Cancel' : 'Add New App'}
+          </button>
+        </div>
+
+        {/* Register New App (Toggle) */}
+        {isRegistering && (
+          <section className="p-4 rounded-xl border border-border-main/50 bg-panel-header/20 animate-in fade-in slide-in-from-top-2 duration-200">
+            <h3 className="text-sm font-bold text-text-accent mb-4 flex items-center gap-2">
+              <Plus size={16} /> Register New Service
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="space-y-1.5">
+                <label className="text-xs text-text-muted font-semibold">App Key (Unique)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. PAYMENT-SERVICE"
+                  className="w-full bg-base border border-border-main rounded-lg px-3 py-2 text-sm focus:border-text-accent outline-none text-text-main"
+                  value={newApp.appKey}
+                  onChange={e => setNewApp({ ...newApp, appKey: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-text-muted font-semibold">App Name (Display)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 결제 연동 서비스"
+                  className="w-full bg-base border border-border-main rounded-lg px-3 py-2 text-sm focus:border-text-accent outline-none text-text-main"
+                  value={newApp.appName}
+                  onChange={e => setNewApp({ ...newApp, appName: e.target.value })}
+                />
+              </div>
+               <div className="space-y-1.5">
+                <label className="text-xs text-text-muted font-semibold">Type</label>
+                <select
+                  className="w-full bg-base border border-border-main rounded-lg px-3 py-2 text-sm focus:border-text-accent outline-none text-text-main"
+                  value={newApp.appType}
+                  onChange={e => setNewApp({ ...newApp, appType: e.target.value })}
+                >
+                  <option value="SPRING_BOOT">Spring Boot</option>
+                  <option value="NODEJS">Node.js</option>
+                  <option value="PYTHON">Python</option>
+                </select>
+              </div>
+              <button
+                onClick={handleCreate}
+                className="bg-text-accent hover:bg-text-accent/80 text-white font-bold py-2 px-4 rounded-lg text-sm transition-all shadow-lg shadow-text-accent/20"
+              >
+                Add App
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Apps List */}
         <div className="relative overflow-hidden border border-border-main rounded-xl">
@@ -159,10 +205,10 @@ const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose
                   <td className="px-6 py-4">
                     <button
                       onClick={() => handleUpdateActive(app)}
-                      className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                      className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
                         app.isActive 
-                        ? 'bg-green-500/10 border-green-500/30 text-green-500' 
-                        : 'bg-red-500/10 border-red-500/30 text-red-500'
+                        ? 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20' 
+                        : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
                       }`}
                     >
                       {app.isActive ? <ShieldCheck size={12} /> : <ShieldX size={12} />}
@@ -232,9 +278,16 @@ const AppManagementModal: React.FC<AppManagementModalProps> = ({ isOpen, onClose
               {apps.length === 0 && !isLoading && (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-text-muted italic">
-                    No applications registered yet.
+                    {searchQuery ? `No results found for "${searchQuery}"` : 'No applications registered yet.'}
                   </td>
                 </tr>
+              )}
+              {isLoading && (
+                 <tr>
+                 <td colSpan={6} className="px-6 py-12 text-center text-text-muted italic">
+                   Loading...
+                 </td>
+               </tr>
               )}
             </tbody>
           </table>

@@ -17,8 +17,11 @@ public class AppInfoService {
     private final AppInfoRepository appInfoRepository;
 
     @Transactional(readOnly = true)
-    public List<AppInfo> getAllApps() {
-        return appInfoRepository.findAll();
+    public List<AppInfo> getAllApps(String query) {
+        if (query != null && !query.trim().isEmpty()) {
+            return appInfoRepository.findAllByAppKeyContainingOrAppNameContainingOrderByCreatedAtDesc(query, query);
+        }
+        return appInfoRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
     }
 
     @Transactional

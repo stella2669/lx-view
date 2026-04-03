@@ -28,5 +28,5 @@ public class AppInfo {
 
     @Column(nullable = false)
     @Builder.Default
-    private Boolean isActive = true; // 사용 여부 (N일 경우 메트릭 ड्रॉप)
+    private Boolean isActive = true; // 사용 여부 (N일 경우 메트릭 수집 안함)
 }

@@ -16,8 +16,8 @@ public class AppInfoController {
     private final AppInfoService appInfoService;
 
     @GetMapping
-    public List<AppInfo> getAllApps() {
-        return appInfoService.getAllApps();
+    public List<AppInfo> getAllApps(@RequestParam(required = false) String query) {
+        return appInfoService.getAllApps(query);
     }
 
     @PostMapping
