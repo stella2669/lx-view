@@ -19,18 +19,25 @@ public class WidgetInfo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
-    private String widgetType; // 예: "TransactionFlow", "XViewChart"
+    @Column(name = "widget_type", nullable = false, unique = true)
+    private String widgetType;
 
-    private String label; // 표시 이름
-    private String description; // 설명
+    @Column(name = "label", nullable = false)
+    private String label;
 
-    @Column(nullable = false)
+    @Column(name = "description")
+    private String description;
+
+    @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
 
-    private Integer minW; // 최소 너비
-    private Integer minH; // 최소 높이
+    @Column(name = "min_w")
+    private Integer minW;
 
+    @Column(name = "min_h")
+    private Integer minH;
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 }
