@@ -189,7 +189,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         {/* Tab Content: Apps */}
         {activeTab === 'apps' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="space-y-6 pb-10 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-panel-header/10 p-2 rounded-xl">
               <div className="relative w-full sm:w-80 group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted group-focus-within:text-text-accent transition-colors" />
@@ -314,7 +314,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         {/* Tab Content: Widgets */}
         {activeTab === 'widgets' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="space-y-6 pb-10 animate-in fade-in duration-300">
             <div className="flex items-center justify-end">
               <button
                 onClick={() => setIsWidgetRegistering(!isWidgetRegistering)}
