@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 interface XViewSelectionListProps {
     transactions: any[];
@@ -21,9 +22,9 @@ const XViewSelectionList: React.FC<XViewSelectionListProps> = ({
 }) => {
     if (transactions.length === 0) return null;
 
-    return (
-        <div 
-            className="absolute bg-gray-800/95 border border-sky-500 p-4 rounded-lg shadow-2xl z-50 text-white flex flex-col"
+    return createPortal(
+        <div
+            className="fixed bg-gray-800/95 border border-sky-500 p-4 rounded-lg shadow-2xl z-[9999] text-white flex flex-col"
             style={{ width: size.width, height: size.height, left: pos.x, top: pos.y }}
         >
             {/* Resize Handle (Bottom-Left) */}
@@ -68,7 +69,8 @@ const XViewSelectionList: React.FC<XViewSelectionListProps> = ({
                     </div>
                 ))}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

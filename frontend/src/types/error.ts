@@ -3,7 +3,7 @@ export interface AppError {
     appId: number;
     occurredAt: string;
     exceptionName: string;
-    errorMessage: string;
+    message: string;
     stackTrace: string;
     requestUrl?: string;
     httpMethod?: string;

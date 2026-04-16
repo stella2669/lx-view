@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { ThemeSelector } from './components/shared/ThemeSelector';
 import { LayoutDropdown } from './components/shared/LayoutDropdown';
@@ -10,12 +10,29 @@ import { LogOut, User as UserIcon, Settings } from 'lucide-react';
 import SettingsModal from './components/admin/SettingsModal';
 
 const App: React.FC = () => {
-  const { isAuthenticated, username, logout } = useAuthStore();
+  const { isAuthenticated, isInitialized, username, logout, tryRestoreSession } = useAuthStore();
   const [activePage, setActivePage] = useState<'login' | 'signup'>('login');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // 앱 최초 마운트 시: HttpOnly Cookie → Access Token 복원 시도
+  useEffect(() => {
+    tryRestoreSession();
+  }, [tryRestoreSession]);
+
   // Start WebSocket Hook
   useWebSocket();
+
+  // 세션 복원 완료 전까지 로딩 화면 표시 (로그인 페이지 깜빡임 방지)
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-base flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-muted text-xs">세션 복원 중...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return activePage === 'login' 

@@ -84,7 +84,7 @@ const SqlDetailModal: React.FC<SqlDetailModalProps> = ({ isOpen, onClose, sqlDat
                         <div>
                             <div className="text-muted text-xs uppercase tracking-wider">Executed At</div>
                             <div className="text-main font-mono text-sm">
-                                {DateTime.fromISO(sqlData.executedAt).toFormat('yyyy-MM-dd HH:mm:ss.SSS')}
+                                {DateTime.fromISO(sqlData.occurredAt).toFormat('yyyy-MM-dd HH:mm:ss.SSS')}
                             </div>
                         </div>
                     </div>
@@ -92,8 +92,8 @@ const SqlDetailModal: React.FC<SqlDetailModalProps> = ({ isOpen, onClose, sqlDat
                         <Cpu className="text-muted" size={20} />
                         <div>
                             <div className="text-muted text-xs uppercase tracking-wider">Thread</div>
-                            <div className="text-main font-mono text-sm truncate w-40" title={sqlData.executingThread || 'Unknown'}>
-                                {sqlData.executingThread || 'Unknown'}
+                            <div className="text-main font-mono text-sm truncate w-40" title={sqlData.threadName || 'Unknown'}>
+                                {sqlData.threadName || 'Unknown'}
                             </div>
                         </div>
                     </div>

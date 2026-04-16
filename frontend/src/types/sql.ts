@@ -10,9 +10,9 @@ export interface StatAppSql {
 export interface LogAppSlowQuery {
     id: number;
     appId: number;
-    executedAt: string;
+    occurredAt: string;
     sqlQuery: string;
     executionTimeMs: number;
     clientIp: string | null;
-    executingThread: string | null;
+    threadName: string | null;
 }

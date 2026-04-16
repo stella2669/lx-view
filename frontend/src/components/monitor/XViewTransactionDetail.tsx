@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 interface XViewTransactionDetailProps {
     detailData: any;
@@ -21,9 +22,9 @@ const XViewTransactionDetail: React.FC<XViewTransactionDetailProps> = ({
     onResizeStart,
     onMoveStart
 }) => {
-    return (
-        <div 
-            className="absolute bg-gray-800/95 border border-indigo-500 p-5 rounded-lg shadow-2xl z-[70] text-white flex flex-col"
+    return createPortal(
+        <div
+            className="fixed bg-gray-800/95 border border-indigo-500 p-5 rounded-lg shadow-2xl z-[9999] text-white flex flex-col"
             style={{ width: size.width, height: size.height, left: pos.x, top: pos.y }}
         >
             {/* Resize Handle (Bottom-Right) */}
@@ -118,7 +119,8 @@ const XViewTransactionDetail: React.FC<XViewTransactionDetailProps> = ({
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

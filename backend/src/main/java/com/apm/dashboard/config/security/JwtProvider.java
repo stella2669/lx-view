@@ -2,6 +2,7 @@ package com.apm.dashboard.config.security;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -50,7 +51,18 @@ public class JwtProvider {
     }
 
     public String createRefreshToken(String username) {
-        return createToken(username, null, refreshTokenValidity);
+        Claims claims = Jwts.claims().setSubject(username);
+        Date now = new Date();
+        Date validity = new Date(now.getTime() + refreshTokenValidity);
+
+        // jti(JWT ID)에 UUID를 넣어 동일 초에 발급되더라도 토큰이 항상 고유하도록 보장
+        return Jwts.builder()
+                .setClaims(claims)
+                .setId(UUID.randomUUID().toString())
+                .setIssuedAt(now)
+                .setExpiration(validity)
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
     }
 
     /** Refresh Token 유효 시간(밀리초)을 반환합니다. Cookie maxAge 설정에 사용. */

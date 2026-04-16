@@ -70,7 +70,7 @@ const RecentSqlList: React.FC<RecentSqlListProps> = ({ recentSlow, loading, onRo
                                         className="border-b border-border-main/50 hover:bg-panel-header/50 transition-colors cursor-pointer group"
                                     >
                                         <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-muted">
-                                            {formatDate(query.executedAt)}
+                                            {formatDate(query.occurredAt)}
                                         </td>
                                         <td className="px-4 py-3 text-xs font-mono text-main truncate overflow-hidden text-ellipsis whitespace-nowrap">
                                             {query.sqlQuery.replace(/\s+/g, ' ')}
@@ -87,8 +87,8 @@ const RecentSqlList: React.FC<RecentSqlListProps> = ({ recentSlow, loading, onRo
                                                 <ShieldCheck size={14} className="text-emerald-400" />
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-center text-xs text-muted truncate" title={query.executingThread || 'Thread'}>
-                                            {query.executingThread?.split('-').pop() || 'N/A'}
+                                        <td className="px-4 py-3 text-center text-xs text-muted truncate" title={query.threadName || 'Thread'}>
+                                            {query.threadName?.split('-').pop() || 'N/A'}
                                         </td>
                                     </tr>
                                 );

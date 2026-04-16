@@ -31,7 +31,7 @@ SpringBoot 기반의 백엔드와 React + TypeScript + Vite 기반의 프론트�
 | Web | Spring WebFlux (Reactive Stack) |
 | Real-time | WebSocket (STOMP Broker) |
 | Database | MariaDB + Spring Data JPA |
-| SQL 로깅 | P6Spy |
+| Agent Resolver | AppIdResolver (AgentName → ID 매핑 및 관리) |
 | Utilities | Lombok |
 
 ---
@@ -158,6 +158,7 @@ lx-view/
 | 5 | `lighter` 블렌딩 모드 GPU 과부하 | 전체 테마 `source-over` 고정 (하드웨어 가속 최대화) |
 | 6 | GC 스파이크 / Stuttering | O(1) 역순 탐색 & Swap-Pop 삭제 + Canvas Native Batching |
 | 7 | V8 엔진 마이크로 오버헤드 | 문자열 HashMap → 3D 배열 인덱싱, 이중 루프 병합, 나눗셈 호이스팅 |
+| 8 | 서버 사이드 부하 및 데이터 폭증 | 인시던트 중복 제거(Deduplication) 엔진 도입 (30s/10s 윈도우) |
 
 ---
 
@@ -206,6 +207,41 @@ lx-view/
     "gcTime": 350,
     "liveThreads": 45,
     "deadlockedThreads": 0
+  }
+]
+```
+
+#### SQL 타입 (SQL Metric & Incident)
+에이전트에서 N ms 이상 소요된 쿼리 또는 에러가 발생한 SQL을 전송합니다. 서버 단에서 10초 윈도우로 중복 로그가 제거됩니다.
+```json
+[
+  {
+    "agentName": "lx-agent-prod-01",
+    "type": "SQL",
+    "txId": "REQ-a1b2c3d4",
+    "timestamp": 1735693200000,
+    "responseTimeMs": 1250,
+    "sql": "SELECT * FROM users WHERE id = ?",
+    "isError": false
+  }
+]
+```
+
+#### ERROR_DETAIL 타입
+애플리케이션에서 발생한 Exception의 상세 스택트레이스를 전송합니다. 동일 txId의 에러는 30초 윈도우로 중복 저장이 방지됩니다.
+```json
+[
+  {
+    "agentName": "lx-agent-prod-01",
+    "type": "ERROR_DETAIL",
+    "txId": "REQ-a1b2c3d4",
+    "timestamp": 1735693200000,
+    "exceptionName": "java.lang.NullPointerException",
+    "errorMessage": "Cannot invoke ...",
+    "stackTrace": "java.lang.NullPointerException...",
+    "requestUrl": "/api/v1/users/login",
+    "httpMethod": "POST",
+    "clientIp": "127.0.0.1"
   }
 ]
 ```

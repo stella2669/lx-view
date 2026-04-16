@@ -47,9 +47,10 @@ public class UnifiedErrorService {
 
     /** AppIncidentLog 엔티티를 UnifiedErrorDto로 변환합니다. */
     private UnifiedErrorDto toDto(AppIncidentLog log) {
+        String shortType = log.getIncidentType() == IncidentType.APP_ERROR ? "APP" : "SQL";
         return UnifiedErrorDto.builder()
-                .id(log.getIncidentType().name() + "-" + log.getId())
-                .type(log.getIncidentType().name())
+                .id(shortType + "-" + log.getId())
+                .type(shortType)
                 .occurredAt(log.getOccurredAt())
                 .title(log.getIncidentType() == IncidentType.APP_ERROR
                         ? log.getExceptionName()

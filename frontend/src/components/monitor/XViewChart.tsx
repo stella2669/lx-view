@@ -46,14 +46,14 @@ const XViewChart: React.FC = () => {
     const resizeStartRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
     const moveStartRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
 
-    // [버그 수정] 컨테이너 크기에 맞춰 초기 위치 계산 (상대 좌표)
+    // 포털(createPortal) 기반 fixed 팝업의 초기 위치 계산 (뷰포트 좌표)
     useEffect(() => {
         if (!posInited && containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect();
-            // 리스트는 우측 정렬 느낌으로
-            setListPos({ x: rect.width - 340, y: 50 });
-            // 디테일은 중앙 정렬 느낌으로
-            setDetailPos({ x: Math.max(0, rect.width / 2 - 225), y: 50 });
+            // 리스트는 차트 우측 상단 근처
+            setListPos({ x: rect.right - 340, y: rect.top + 50 });
+            // 디테일은 차트 중앙 상단 근처
+            setDetailPos({ x: rect.left + Math.max(0, rect.width / 2 - 225), y: rect.top + 50 });
             setPosInited(true);
         }
     }, [posInited]);
@@ -326,27 +326,29 @@ const XViewChart: React.FC = () => {
 
     return (
         <BaseChartCard title="X-View (Live Scatter)" icon={ScatterChart} iconColor="text-indigo-400">
-            {/* 컨테이너 좌표 기준을 잡기 위한 래퍼 */}
+            {/* 캔버스 컨테이너 — 포털로 렌더링되는 팝업과 독립적 */}
             <div ref={containerRef} className="absolute inset-0 block w-full h-full overflow-hidden">
                 <canvas ref={canvasRef} className="w-full h-full block" />
-
-                {selectedTxId && (
-                    <XViewTransactionDetail 
-                        detailData={detailData} loading={loading} error={error} size={detailSize} pos={detailPos}
-                        onClose={closeDetail} 
-                        onResizeStart={(e) => onResizeStart('detail', e)}
-                        onMoveStart={(e) => onMoveStart('detail', e)}
-                    />
-                )}
-
-                <XViewSelectionList 
-                    transactions={selectedTransactions} size={listSize} pos={listPos}
-                    onClose={() => { setSelectedTransactions([]); setDragBox(null); }} 
-                    onSelectTransaction={loadDetail}
-                    onResizeStart={(e) => onResizeStart('list', e)}
-                    onMoveStart={(e) => onMoveStart('list', e)}
-                />
             </div>
+
+            {/* 트랜잭션 상세 팝업 — createPortal로 document.body에 렌더링 */}
+            {selectedTxId && (
+                <XViewTransactionDetail
+                    detailData={detailData} loading={loading} error={error} size={detailSize} pos={detailPos}
+                    onClose={closeDetail}
+                    onResizeStart={(e) => onResizeStart('detail', e)}
+                    onMoveStart={(e) => onMoveStart('detail', e)}
+                />
+            )}
+
+            {/* 선택 트랜잭션 목록 팝업 — createPortal로 document.body에 렌더링 */}
+            <XViewSelectionList
+                transactions={selectedTransactions} size={listSize} pos={listPos}
+                onClose={() => { setSelectedTransactions([]); setDragBox(null); }}
+                onSelectTransaction={loadDetail}
+                onResizeStart={(e) => onResizeStart('list', e)}
+                onMoveStart={(e) => onMoveStart('list', e)}
+            />
         </BaseChartCard>
     );
 };

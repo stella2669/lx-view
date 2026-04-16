@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, ServerCrash, Clock, Fingerprint, Activity } from 'lucide-react';
 import { DateTime } from 'luxon';
 import type { AppError } from '../../types/error';
@@ -16,8 +17,8 @@ export const AppErrorDetailModal: React.FC<AppErrorDetailModalProps> = ({ isOpen
         return DateTime.fromISO(isoString).toFormat('yyyy-MM-dd HH:mm:ss.SSS');
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-panel rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-border-main shadow-2xl transition-colors">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border-main bg-panel-header/50 rounded-t-xl">
@@ -64,7 +65,7 @@ export const AppErrorDetailModal: React.FC<AppErrorDetailModalProps> = ({ isOpen
                             <div>
                                 <span className="text-xs text-muted block mb-1">Message</span>
                                 <div className="text-sm text-rose-400 font-mono bg-panel p-3 rounded border border-rose-500/20 break-words whitespace-pre-wrap">
-                                    {error.errorMessage}
+                                    {error.message}
                                 </div>
                             </div>
                         </div>
@@ -127,7 +128,8 @@ export const AppErrorDetailModal: React.FC<AppErrorDetailModalProps> = ({ isOpen
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
